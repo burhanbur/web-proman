@@ -1,332 +1,151 @@
 <template>
-    <div class="login-container">
-        <div class="login-image">
-            <div class="image-wrapper">
-                <img src="../assets/img/up.jpg" alt="Login Background" />
-                <div class="overlay"></div>
+  <div :class="['min-h-screen flex items-center justify-center transition-colors duration-300 px-4', theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50']">
+    <div class="flex flex-col md:flex-row w-full max-w-4xl shadow-2xl rounded-xl overflow-hidden bg-transparent">
+      <!-- Left Image -->
+      <div class="hidden md:block md:w-1/2 relative rounded-l-xl overflow-hidden">
+        <img :src="bgImage" alt="Login Background" class="object-cover w-full h-full" />
+        <div :class="['absolute inset-0', theme === 'dark' ? 'bg-gradient-to-b from-black/30 to-black/50' : 'bg-gradient-to-b from-black/10 to-black/20']"></div>
+      </div>
+
+      <!-- Login Form -->
+  <div :class="['w-full md:w-1/2 flex flex-col justify-center items-center p-8 rounded-r-xl transition-colors', theme === 'dark' ? 'bg-gray-800' : 'bg-white shadow-sm border border-gray-200']">
+        <div class="w-full max-w-sm">
+          <div class="flex justify-center mb-6">
+            <img :src="logoImage" alt="Logo" class="h-16" />
+          </div>
+          <h1 :class="['text-2xl font-semibold text-center mb-2', theme === 'dark' ? 'text-gray-100' : 'text-gray-800']">Project Management</h1>
+          <h2 :class="['text-center text-sm mb-8', theme === 'dark' ? 'text-gray-400' : 'text-gray-600']">Universitas Pertamina</h2>
+
+          <form @submit.prevent="handleLogin" class="space-y-6">
+            <div>
+              <label for="username" :class="['block text-sm font-medium mb-1', theme === 'dark' ? 'text-gray-300' : 'text-gray-800']">Username</label>
+              <input
+                id="username"
+                type="text"
+                v-model="username"
+                placeholder="Username"
+                required
+                autofocus
+                autocomplete="username"
+                :class="[
+                  'block w-full px-4 py-2 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500',
+                  theme === 'dark'
+                    ? 'border border-gray-700 bg-gray-700 text-gray-100'
+                    : 'border border-gray-200 bg-white text-gray-900 placeholder-gray-600'
+                ]"
+              />
             </div>
-        </div>
-        
-        <div class="login-form-container">
-            <div class="login-form-wrapper">
-                <div class="logo-container">
-                    <img src="../assets/logo.png" alt="Logo" class="logo" />
-                </div>
-                <h1 class="text-center">Project Management<br>Universitas Pertamina</h1>
-                
-                <form @submit.prevent="handleLogin" class="login-form">
-                    <div class="form-group">
-                        <input 
-                            type="text" 
-                            id="username" 
-                            v-model="username" 
-                            placeholder="Username"
-                            required
-                        />
-                    </div>
 
-                    <div class="form-group password-group">
-                        <input 
-                            :type="showPassword ? 'text' : 'password'"
-                            id="password" 
-                            v-model="password" 
-                            placeholder="Password"
-                            required
-                        />
-                        <button 
-                            type="button"
-                            class="toggle-password"
-                            @click="showPassword = !showPassword"
-                            :title="showPassword ? 'Hide password' : 'Show password'"
-                        >
-                            <font-awesome-icon :icon="showPassword ? 'eye-slash' : 'eye'" />
-                        </button>
-                    </div>
-
-                    <div class="form-links">
-                        <router-link to="/forgot-password" class="forgot-link">Lupa Password?</router-link>
-                    </div>
-
-                    <button type="submit" :disabled="loading" class="sign-in-btn">
-                        <font-awesome-icon icon="sign-in-alt" /> &nbsp; {{ loading ? 'Logging in...' : 'Login' }}
-                    </button>
-                </form>
+            <div>
+              <label for="password" :class="['block text-sm font-medium mb-1', theme === 'dark' ? 'text-gray-300' : 'text-gray-800']">Password</label>
+              <div class="relative">
+                <input
+                  :type="showPassword ? 'text' : 'password'"
+                    id="password"
+                    v-model="password"
+                    placeholder="Password"
+                    required
+                    autocomplete="current-password"
+                    :class="[
+                      'block w-full px-4 py-2 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-primary-500 pr-12',
+                      theme === 'dark'
+                        ? 'border border-gray-700 bg-gray-700 text-gray-100'
+                        : 'border border-gray-200 bg-white text-gray-900 placeholder-gray-400'
+                    ]"
+                />
+                <button
+                  type="button"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pw-toggle text-gray-400 hover:text-primary-500 dark:hover:text-primary-400 focus:outline-none"
+                  @click="showPassword = !showPassword"
+                  :title="showPassword ? 'Hide password' : 'Show password'"
+                  tabindex="-1"
+                >
+                  <font-awesome-icon :icon="showPassword ? 'eye-slash' : 'eye'" />
+                </button>
+              </div>
             </div>
+
+            <div class="flex items-center justify-between">
+              <button
+                type="submit"
+                :disabled="loading"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 text-white font-semibold rounded-lg shadow transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <font-awesome-icon icon="sign-in-alt" />
+                <span>{{ loading ? 'Logging in...' : 'Login' }}</span>
+              </button>
+            </div>
+          </form>
+
+          <div class="flex justify-center mt-8">
+            <button
+              @click="toggleTheme"
+              :class="[
+                'flex items-center gap-2 px-3 py-1.5 rounded-md transition',
+                theme === 'dark'
+                  ? 'border border-gray-700 bg-gray-700 text-gray-200 hover:bg-gray-600'
+                  : 'border border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ]"
+            >
+              <font-awesome-icon :icon="theme === 'dark' ? 'sun' : 'moon'" />
+              <span>{{ theme === 'dark' ? 'Light Mode' : 'Dark Mode' }}</span>
+            </button>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
 </template>
 
 <script setup>
-    import { ref, onMounted } from 'vue';
-    import { useRouter } from 'vue-router';
-    import { useAuthStore } from '@/stores/auth';
-    import { successToast, errorToast, warningToast } from '@/utils/toast'
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
+import { successToast, errorToast } from '@/utils/toast';
 
-    const router = useRouter();
-    const username = ref('');
-    const password = ref('');
-    const loading = ref(false);
-    const showPassword = ref(false);
+// Import images so Vite can resolve them correctly
+import bgImage from '@/assets/img/up.jpg';
+import logoImage from '@/assets/logo.png';
 
-    const authStore = useAuthStore();
+const router = useRouter();
+const username = ref('');
+const password = ref('');
+const loading = ref(false);
+const showPassword = ref(false);
+const theme = ref('light');
 
-    const handleLogin = async () => {
-        try {
-            loading.value = true;
-            const response = await authStore.login(username.value, password.value);
+const authStore = useAuthStore();
 
-            if (!response) {
-                throw new Error();
-            }
+const handleLogin = async () => {
+  try {
+    loading.value = true;
+    const response = await authStore.login(username.value, password.value);
+    if (!response) throw new Error();
+    successToast('Verifikasi identitas berhasil.');
+    router.push('/dashboard');
+  } catch (error) {
+    const message = error?.response?.data?.message || 'Login gagal. Periksa kembali data Anda.';
+    errorToast(message);
+  } finally {
+    loading.value = false;
+  }
+};
 
-            successToast('Verifikasi identitas berhasil.');
-            router.push('/dashboard');
-        } catch (error) {
-            const message = error?.response?.data?.message || 'Login gagal. Periksa kembali data Anda.';
-            errorToast(message);
-        } finally {
-            loading.value = false;
-        }
-    }
+const toggleTheme = () => {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+  document.documentElement.classList.toggle('dark', theme.value === 'dark');
+  localStorage.setItem('theme', theme.value);
+};
+
+onMounted(() => {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    theme.value = 'dark';
+    document.documentElement.classList.add('dark');
+  } else {
+    theme.value = 'light';
+    document.documentElement.classList.remove('dark');
+  }
+});
 </script>
 
-<style scoped>
-    .login-container {
-        display: flex;
-        min-height: 100vh;
-        width: 100vw;
-        background-color: var(--background);
-    }
-
-    .login-image {
-        position: relative;
-        width: 55%;
-        overflow: hidden;
-    }
-
-    .image-wrapper {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-    }
-
-    .image-wrapper img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.3);
-    }
-
-    .login-form-container {
-        width: 45%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: var(--background);
-        padding: 2rem;
-    }
-
-    .login-form-wrapper {
-        width: 100%;
-        max-width: 420px;
-        padding: 2rem;
-    }
-
-    .logo-container {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-
-    .logo {
-        max-width: 200px;
-        height: auto;
-    }
-
-    h1 {
-        font-size: 14px;
-        color: var(--text-secondary);
-        margin-bottom: 30px;
-        font-weight: 500;
-        letter-spacing: 1px;
-    }
-
-    .login-form {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }
-
-    .form-group input {
-        width: 100%;
-        padding: 12px 15px;
-        border: 1px solid var(--border);
-        border-radius: 4px;
-        font-size: 14px;
-        background-color: var(--background);
-    }
-
-    .form-group input::placeholder {
-        color: var(--text-muted);
-    }
-
-    .form-group input:focus {
-        outline: none;
-        border-color: var(--primary);
-    }
-
-    .form-links {
-        text-align: right;
-        margin-top: -10px;
-    }
-
-    .forgot-link {
-        color: var(--text-muted);
-        text-decoration: none;
-        font-size: 12px;
-    }
-
-    .forgot-link:hover {
-        color: var(--text-secondary);
-    }
-
-    .sign-in-btn {
-        width: 100%;
-        padding: 12px;
-        background-color: var(--primary);
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .sign-in-btn:hover:not(:disabled) {
-        background-color: var(--primary-hover);
-        transform: translateY(-1px);
-    }
-
-    .sign-in-btn:active:not(:disabled) {
-        transform: translateY(0);
-    }
-
-    .sign-in-btn:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-    }
-
-    .sign-up-section {
-        text-align: center;
-        margin-top: 20px;
-    }
-
-    .sign-up-link {
-        color: var(--primary);
-        text-decoration: none;
-        font-size: 12px;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    .sign-up-link:hover {
-        color: var(--primary-hover);
-    }
-
-    .error-message {
-        margin-top: 20px;
-        padding: 10px;
-        background-color: rgba(220, 53, 69, 0.1);
-        color: var(--error);
-        border-radius: 4px;
-        font-size: 13px;
-        text-align: center;
-    }
-
-    .success-message {
-        margin-top: 20px;
-        padding: 10px;
-        background-color: rgba(40, 167, 69, 0.1);
-        color: var(--success);
-        border-radius: 4px;
-        font-size: 13px;
-        text-align: center;
-    }
-
-    .password-group {
-        position: relative;
-    }
-
-    .toggle-password {
-        position: absolute;
-        right: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        padding: 4px 8px;
-        cursor: pointer;
-        color: var(--text-muted);
-        transition: color 0.2s;
-        display: flex;
-        align-items: center;
-        z-index: 2;
-    }
-
-    .toggle-password:hover {
-        color: var(--text-secondary);
-    }
-
-    .toggle-password:focus {
-        outline: none;
-    }
-
-    .password-group input {
-        padding-right: 40px;
-    }
-
-    /* Responsive Design */
-    @media (max-width: 1200px) {
-        .login-image {
-            width: 50%;
-        }
-        
-        .login-form-container {
-            width: 50%;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .login-container {
-            flex-direction: column;
-            width: 100%;
-        }
-
-        .login-image {
-            width: 100%;
-            height: 280px;
-        }
-
-        .login-form-container {
-            width: 100%;
-            padding: 2rem 1.5rem;
-        }
-
-        .login-form-wrapper {
-            padding: 0;
-        }
-    }
-</style>
