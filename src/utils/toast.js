@@ -12,6 +12,15 @@ const baseToast = Swal.mixin({
   }
 })
 
+// Read primary color from CSS variable so it stays in sync with design tokens.
+const getCssVar = (name, fallback) => {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+  } catch (e) {
+    return fallback
+  }
+}
+
 const toastTypes = {
   success: '#4CAF50',   // Green
   error: '#F44336',     // Red
@@ -19,7 +28,7 @@ const toastTypes = {
   info: '#2196F3',      // Blue
   secondary: '#6c757d', // Grey
   dark: '#343a40',      // Black
-  primary: '#17a2b8',   // Blue Primary
+  primary: getCssVar('--color-primary-500', '#17a2b8'),   // Blue Primary (from CSS token)
 }
 
 const fontColor = {

@@ -24,7 +24,7 @@ export const useAuthStore = defineStore('auth', {
     isAdmin: (state) => {
       return true;
     },
-    fullName: (state) => state.user?.full_name || 'Pengguna',
+    fullName: (state) => state.user?.name || 'Pengguna',
     email: (state) => state.user?.email || '',
     roles: (state) => {
         return state.user?.roles || [];

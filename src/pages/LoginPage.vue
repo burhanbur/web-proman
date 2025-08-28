@@ -11,9 +11,9 @@
   <div :class="['w-full md:w-1/2 flex flex-col justify-center items-center p-8 rounded-r-xl transition-colors', theme === 'dark' ? 'bg-gray-800' : 'bg-white shadow-sm border border-gray-200']">
         <div class="w-full max-w-sm">
           <div class="flex justify-center mb-6">
-            <img :src="logoImage" alt="Logo" class="h-16" />
+            <img :src="logoSrc" alt="Logo" class="h-28" />
           </div>
-          <h1 :class="['text-2xl font-semibold text-center mb-2', theme === 'dark' ? 'text-gray-100' : 'text-gray-800']">Project Management</h1>
+          <h1 :class="['text-2xl font-semibold text-center mb-2', theme === 'dark' ? 'text-gray-100' : 'text-gray-800']">PRIMA</h1>
           <h2 :class="['text-center text-sm mb-8', theme === 'dark' ? 'text-gray-400' : 'text-gray-600']">Universitas Pertamina</h2>
 
           <form @submit.prevent="handleLogin" class="space-y-6">
@@ -98,21 +98,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useThemeStore } from '@/stores/theme';
 import { successToast, errorToast } from '@/utils/toast';
 
 // Import images so Vite can resolve them correctly
 import bgImage from '@/assets/img/up.jpg';
 import logoImage from '@/assets/logo.png';
+import logoWhiteImage from '@/assets/logo-white.png';
+import logoBlackImage from '@/assets/logo-black.png';
 
 const router = useRouter();
 const username = ref('');
 const password = ref('');
 const loading = ref(false);
 const showPassword = ref(false);
-const theme = ref('light');
+const themeStore = useThemeStore();
+const theme = computed(() => themeStore.theme);
+
+// Select logo based on current theme: light -> logoImage, dark -> logoWhiteImage
+const logoSrc = computed(() => (theme.value === 'dark' ? logoWhiteImage : logoImage));
 
 const authStore = useAuthStore();
 
@@ -132,20 +139,12 @@ const handleLogin = async () => {
 };
 
 const toggleTheme = () => {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark';
-  document.documentElement.classList.toggle('dark', theme.value === 'dark');
-  localStorage.setItem('theme', theme.value);
+  themeStore.toggle();
 };
 
 onMounted(() => {
-  const saved = localStorage.getItem('theme');
-  if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    theme.value = 'dark';
-    document.documentElement.classList.add('dark');
-  } else {
-    theme.value = 'light';
-    document.documentElement.classList.remove('dark');
-  }
+  // themeStore.init() already called in App.vue; ensure local reactive binding is current
+  // nothing else needed here
 });
 </script>
 

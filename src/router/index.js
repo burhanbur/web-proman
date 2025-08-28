@@ -51,7 +51,9 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
     const authStore = useAuthStore();
     const isGuestRoute = to.matched.some(record => record.meta.requiresGuest);
-    
+    const isAuthRoute = to.matched.some(record => record.meta.requiresAuth);
+    const isAdminRoute = to.matched.some(record => record.meta.requiresAdmin);
+
     if (!isGuestRoute && !authStore.isUserLoaded) {
         try {
             await authStore.fetchUserData();
@@ -62,19 +64,19 @@ router.beforeEach(async (to, from, next) => {
 
     const isAuthenticated = authStore.isAuthenticated;
 
-    if (to.matched.some(record => record.meta.requiresAuth)) {
+    if (isAuthRoute) {
         if (!isAuthenticated) {
             return next('/login');
         }
 
-        if (to.matched.some(record => record.meta.requiresAdmin) && !authStore.isAdmin) {
+        if (isAdminRoute && !authStore.isAdmin) {
             return next('/dashboard');
         }
         
         return next();
-    } 
-    
-    if (to.matched.some(record => record.meta.requiresGuest)) {
+    }
+
+    if (isGuestRoute) {
         if (isAuthenticated || authStore.isUserLoaded) {
             return next('/dashboard');
         }

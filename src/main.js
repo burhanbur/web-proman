@@ -17,4 +17,8 @@ app.component('multiselect', Multiselect)
 app.use(pinia)
 app.use(router)
 
+// set document title from Vite env (fallback to 'PRIMA')
+const appName = import.meta.env.VITE_APP_NAME ?? 'PRIMA'
+document.title = `${appName}`
+
 app.mount('#app')

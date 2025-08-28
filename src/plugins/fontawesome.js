@@ -37,6 +37,9 @@ import {
   faInbox,
   faSignInAlt,
   faTimes,
+  faChevronDown,
+  faCog,
+  faCogs,
 } from '@fortawesome/free-solid-svg-icons';
 
 // Add icons to the library
@@ -77,5 +80,7 @@ library.add(
   faCopy,
   faInbox,
   faSignInAlt,
-  faTimes,
+  faChevronDown,
+  faCog,
+  faCogs,
 );
