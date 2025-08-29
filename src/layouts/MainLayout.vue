@@ -235,3 +235,55 @@ onMounted(() => {
 }
 
 </style>
+
+<!-- Global dark-theme tweaks (not scoped) to make MainLayout tone match AuthLayout/LoginPage -->
+<style>
+/* use slightly lighter background in dark mode so layout isn't too deep-black */
+html.dark .app-shell {
+    background: var(--bg-0) !important;
+}
+
+/* topbar: softer backdrop and lighter border in dark theme */
+html.dark .topbar {
+    /* force identical visual band as footer in dark mode */
+    background: var(--bg-1) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* make brand and small icons use slightly teal primary tone in dark mode */
+html.dark .topbar .brand { color: var(--color-primary-400); }
+html.dark .topbar .theme-toggle,
+html.dark .topbar .notification-button,
+html.dark .topbar .profile-button,
+html.dark .topbar .burger,
+html.dark .topbar .theme-toggle svg,
+html.dark .topbar .profile-button svg {
+    color: var(--color-primary-300);
+}
+
+/* ensure burger bars remain visible but softer */
+html.dark .topbar .burger,
+html.dark .topbar .burger::before,
+html.dark .topbar .burger::after {
+    background: rgba(255,255,255,0.85) !important;
+}
+
+/* mobile menu, content cards and footer adopt softer dark bg and lighter borders */
+html.dark .mobile-menu,
+html.dark .content-card,
+html.dark .app-footer {
+    background: var(--bg-1) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* ensure footer uses the same tonal band and border as header */
+html.dark .app-footer {
+    border-top: 1px solid var(--border-color) !important;
+    background: var(--bg-1) !important;
+    box-shadow: none !important;
+}
+
+</style>

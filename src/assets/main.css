@@ -31,7 +31,8 @@
 }
 
 /* Ensure theme (dark) class doesn't override primary token unintentionally */
-.dark {
+.html-dark-placeholder {}
+html.dark {
   --color-primary-50: #e8f7f9;
   --color-primary-100: #d1eff2;
   --color-primary-200: #a7e0e6;
@@ -42,6 +43,19 @@
   --color-primary-700: #0f6b78;
   --color-primary-800: #0b4950;
   --color-primary-900: #07282a;
+
+  /* dark theme semantic tokens - use Tailwind gray tones to match provided values */
+  --color-background: #111827; /* Tailwind bg-gray-900 (rgb(17 24 39)) */
+  --color-background-soft: #1f2937; /* Tailwind bg-gray-800 (rgb(31 41 55)) */
+  --color-text: #e6f2f5; /* readable but soft */
+  --color-border: rgba(255,255,255,0.06);
+  --color-muted: #9fb3ba;
+
+  /* aliases used by existing components/layouts so they pick up immediately */
+  --bg-0: var(--color-background);
+  --bg-1: var(--color-background-soft);
+  --text-color: var(--color-text);
+  --border-color: var(--color-border);
 }
 
 /* Header branding and icon tones for light theme

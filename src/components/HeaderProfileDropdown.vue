@@ -52,37 +52,70 @@ onBeforeUnmount(() => document.removeEventListener('click', onClick))
 
 <style scoped>
 .profile-dropdown { position: relative; }
+
+/* Button */
 .profile-button {
-  display: flex; align-items: center; gap: 8px; background: transparent; border: none; cursor: pointer; padding: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
 }
 .profile-button .name { color: var(--text-color) !important; }
-.avatar { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; }
-.avatar-fallback { width: 32px; height: 32px; border-radius: 8px; background: var(--bg-1); display:flex; align-items:center; justify-content:center; font-weight:700; color: var(--color-primary-500) !important }
-.dropdown-menu { position: absolute; right: 0; top: calc(100% + 8px); background: var(--bg-0); border:1px solid var(--border-color); border-radius:8px; padding:8px; min-width:180px; box-shadow:0 6px 20px rgba(16,24,40,0.08); z-index:200 }
-.dropdown-item { display:block; padding:8px 10px; color: var(--text-color); text-decoration:none }
+
+/* Avatar */
+.avatar,
+.avatar-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.avatar { object-fit: cover; }
+.avatar-fallback { background: var(--bg-1); font-weight: 700; color: var(--color-primary-500) !important; }
+
+/* Dropdown */
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 180px;
+  box-shadow: 0 6px 20px rgba(16,24,40,0.08);
+  z-index: 200;
+}
+
+/* Dropdown items (links and buttons) share the same base styles */
+.dropdown-item {
+  display: block;
+  padding: 8px 10px;
+  color: var(--text-color);
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Icons inside items follow color (works with dark/light) */
 .dropdown-item svg,
-.dropdown-item svg * {
-  /* Inner shapes follow currentColor so fill/stroke adapt to color set below */
+.dropdown-item svg *,
+.profile-button svg,
+.profile-button svg * {
   fill: currentColor !important;
   stroke: currentColor !important;
   vertical-align: middle;
-}
-
-/* default to the text color (works for dark theme). In light mode use primary tone */
-.profile-dropdown .dropdown-item svg {
   color: var(--text-color);
 }
-html:not(.dark) .profile-dropdown .dropdown-item svg {
-  color: var(--color-primary-700);
-}
+html:not(.dark) .profile-dropdown .dropdown-item svg { color: var(--color-primary-700); }
 
-/* Make chevron / button icons follow the current text color (so they flip in dark mode) */
-.profile-button svg,
-.profile-button svg * {
-  color: var(--text-color);
-  fill: currentColor !important;
-  stroke: currentColor !important;
-}
-.dropdown-item.logout { width:100%; text-align:left; background:transparent; border:none; cursor:pointer }
-.dropdown-item:hover { background: var(--bg-1) }
+.dropdown-item:hover { background: var(--bg-1); }
 </style>
