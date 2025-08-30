@@ -43,7 +43,7 @@
 
         <footer class="app-footer">
             <div class="container footer-inner">
-                <p>2025 &copy; Universitas Pertamina. All rights reserved.</p>
+                <p>&copy; 2025 Universitas Pertamina. All rights reserved.</p>
             </div>
         </footer>
     </div>

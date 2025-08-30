@@ -76,7 +76,21 @@ onBeforeUnmount(() => document.removeEventListener('click', onClick))
   justify-content: center;
 }
 .avatar { object-fit: cover; }
-.avatar-fallback { background: var(--bg-1); font-weight: 700; color: var(--color-primary-500) !important; }
+.avatar-fallback {
+  background: var(--color-primary-600);
+  font-weight: 700;
+  color: #ffffff !important;
+  /* subtle border/shadow so the avatar never visually merges with a similar page background */
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04) inset;
+}
+
+/* Dark-mode tweak: use a lighter primary so text stays readable and doesn't match dark page background */
+html.dark .avatar-fallback {
+  background: var(--color-primary-400);
+  color: #0f172a !important; /* near-gray-900 to keep strong contrast on light-ish bg */
+  border: 1px solid rgba(255,255,255,0.06);
+}
 
 /* Dropdown */
 .dropdown-menu {
@@ -105,7 +119,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onClick))
   cursor: pointer;
 }
 
-/* Icons inside items follow color (works with dark/light) */
+/* Icons inside items follow the parent color (match NotificationIcon and ThemeToggle) */
 .dropdown-item svg,
 .dropdown-item svg *,
 .profile-button svg,
@@ -113,9 +127,15 @@ onBeforeUnmount(() => document.removeEventListener('click', onClick))
   fill: currentColor !important;
   stroke: currentColor !important;
   vertical-align: middle;
-  color: var(--text-color);
 }
-html:not(.dark) .profile-dropdown .dropdown-item svg { color: var(--color-primary-700); }
+
+/* Header icons (chevron + avatar area) should use the primary accent like notification and theme toggle */
+.profile-button svg { color: var(--color-primary-700) !important; }
+html.dark .profile-button svg { color: var(--color-primary-200) !important; }
+
+/* Dropdown item icons: use the same accent to match header icons */
+.dropdown-item svg { color: var(--color-primary-700) !important; }
+html.dark .dropdown-item svg { color: var(--color-primary-200) !important; }
 
 .dropdown-item:hover { background: var(--bg-1); }
 </style>
