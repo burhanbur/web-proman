@@ -17,7 +17,7 @@
       <div class="notification-list" v-if="notifications.length > 0">
         <div v-for="notification in notifications" :key="notification.id" class="notification-item" :class="{ 'unread': !notification.read_at }">
           <div class="notification-content" @click="readNotification(notification)">
-            <p class="notification-text">{{ notification.content }}</p>
+            <p class="notification-text">{{ notification.message }}</p>
             <span class="notification-time">{{ formatTime(notification.created_at) }}</span>
           </div>
           <button @click.stop="deleteNotification(notification.uuid)" class="delete-notification" title="Hapus notifikasi">
@@ -140,8 +140,27 @@ onUnmounted(() => {
   color: inherit;
   transition: transform 0.2s ease, background 0.2s ease;
 }
-.notification-button:hover { transform: translateY(-1px); }
-.notification-button.has-unread { background: var(--color-primary-50, #e3f2fd); color: var(--color-primary-700, #2196f3); }
+
+.notification-button:hover { 
+  transform: translateY(-1px); 
+  background: var(--color-background-soft, #f8f8f8);
+}
+
+/* Light mode unread state */
+html:not(.dark) .notification-button.has-unread { 
+  background: var(--color-primary-50, #e3f2fd); 
+  color: var(--color-primary-700, #2196f3); 
+}
+
+/* Dark mode styles */
+html.dark .notification-button:hover {
+  background: var(--color-background-soft, #1f2937);
+}
+
+html.dark .notification-button.has-unread { 
+  background: rgba(23, 162, 184, 0.15); 
+  color: var(--color-primary-400, #4fc3cf); 
+}
 
 /* Badge */
 .notification-badge {
@@ -149,7 +168,7 @@ onUnmounted(() => {
   top: -2px;
   right: -2px;
   background: #ef4444;
-  color: var(--color-primary-50, #fff);
+  color: #fff;
   border-radius: 12px;
   padding: 2px 6px;
   font-size: 0.75rem;
@@ -158,7 +177,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--bg-0, #fff);
   font-weight: 600;
 }
 
@@ -168,13 +186,18 @@ onUnmounted(() => {
   right: 0;
   top: calc(100% + 12px);
   width: 380px;
-  background: var(--bg-0, #fff);
+  background: var(--color-background, #fff);
   border-radius: 12px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.12);
   z-index: 1000;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--color-border, #e5e7eb);
   animation: slideDown 0.2s ease-out;
   transform-origin: top right;
+}
+
+/* Dark mode dropdown shadow */
+html.dark .notification-dropdown {
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
 }
 
 @keyframes slideDown {
@@ -184,19 +207,19 @@ onUnmounted(() => {
 
 .notification-header {
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
   display:flex;
   justify-content:space-between;
   align-items:center;
-  background: var(--bg-1, #f8fafc);
+  background: var(--color-background-soft, #f8fafc);
   border-radius: 12px 12px 0 0;
 }
-.notification-header h3 { margin:0; font-size:1.1rem; font-weight:600; color:var(--text-color, #1e293b); }
+.notification-header h3 { margin:0; font-size:1.1rem; font-weight:600; color:var(--color-text, #1e293b); }
 
 .mark-all-read {
   background:none;
-  border:1px solid var(--border-color, #e2e8f0);
-  color:var(--text-color, #64748b);
+  border:1px solid var(--color-border, #e2e8f0);
+  color:var(--color-text, #64748b);
   cursor:pointer;
   font-size:0.875rem;
   padding:6px 12px;
@@ -205,11 +228,21 @@ onUnmounted(() => {
   display:flex; align-items:center; gap:6px; font-weight:500;
 }
 
+.mark-all-read:hover {
+  background: var(--color-background-mute, #f1f5f9);
+  border-color: var(--color-border-hover, #cbd5e1);
+}
+
+/* Dark mode mark all read button */
+html.dark .mark-all-read:hover {
+  background: var(--color-background-mute, #374151);
+}
+
 .notification-list { max-height:420px; overflow-y:auto; }
 
 .notification-item {
   padding:1.25rem;
-  border-bottom:1px solid var(--border-color, #e5e7eb);
+  border-bottom:1px solid var(--color-border, #e5e7eb);
   display:flex;
   align-items:flex-start;
   gap:1rem;
@@ -217,42 +250,77 @@ onUnmounted(() => {
   cursor:pointer;
   position:relative;
 }
-.notification-item.unread { background: var(--color-primary-50, #f0f9ff); }
+
+.notification-item:hover {
+  background: var(--color-background-soft, #f8fafc);
+}
+
+/* Dark mode notification item hover */
+html.dark .notification-item:hover {
+  background: var(--color-background-soft, #1f2937);
+}
+
+.notification-item.unread { 
+  background: var(--color-primary-50, #f0f9ff); 
+}
+
+/* Dark mode unread notification */
+html.dark .notification-item.unread {
+  background: rgba(23, 162, 184, 0.1); /* Semi-transparent primary color */
+}
+
 .notification-item.unread::before {
   content: '';
   position: absolute;
   left:0; top:0; bottom:0;
   width:3px;
-  background: var(--color-primary-700, #2196f3);
+  background: var(--color-primary-500, #17a2b8);
   border-radius: 0 4px 4px 0;
 }
 
 .notification-content { flex:1; }
-.notification-text { margin:0; font-size:0.9375rem; color:var(--text-color, #1e293b); line-height:1.5; font-weight:400; }
-.notification-time { display:block; font-size:0.8125rem; color:var(--text-color, #64748b); margin-top:6px; font-weight:500; }
+.notification-text { margin:0; font-size:0.9375rem; color:var(--color-text, #1e293b); line-height:1.5; font-weight:400; }
+.notification-time { display:block; font-size:0.8125rem; color:var(--color-text, #64748b); margin-top:6px; font-weight:500; opacity: 0.7; }
 
 .delete-notification {
   background:none;
   border:none;
-  color:var(--text-color, #94a3b8);
+  color:var(--color-text, #94a3b8);
   cursor:pointer;
   padding:8px;
   opacity:0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s ease, color 0.2s ease;
   border-radius:6px;
   display:flex; align-items:center; justify-content:center;
   width:28px; height:28px; margin-top:-4px;
 }
 .notification-item:hover .delete-notification { opacity:1; }
+.delete-notification:hover { color: #ef4444; }
 
 .empty-notifications {
   padding:3rem 2rem;
   text-align:center;
-  color:var(--text-muted, #64748b);
+  color:var(--color-text, #64748b);
+  opacity: 0.7;
   display:flex;
   flex-direction:column;
   align-items:center;
   gap:1rem;
+}
+
+.empty-notifications svg {
+  font-size: 2.5rem;
+  opacity: 0.5;
+}
+
+.empty-text p {
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.empty-text span {
+  font-size: 0.875rem;
+  opacity: 0.8;
 }
 
 </style>

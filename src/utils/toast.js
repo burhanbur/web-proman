@@ -40,7 +40,26 @@ export const successToast = (message = 'Berhasil!') => {
   baseToast.fire({ icon: 'success', title: message, background: toastTypes.success, color: fontColor.white })
 }
 
-export const errorToast = (message = 'Terjadi kesalahan') => {
+export const errorToast = (error = 'Terjadi kesalahan') => {
+  let message = 'Terjadi kesalahan';
+  
+  // Jika error adalah string, gunakan langsung
+  if (typeof error === 'string') {
+    message = error;
+  }
+  // Jika error adalah axios error dengan response
+  else if (error?.response?.data?.message) {
+    message = error.response.data.message;
+  }
+  // Jika error adalah axios error tanpa custom message
+  else if (error?.message) {
+    message = error.message;
+  }
+  // Jika error adalah object dengan property message
+  else if (error?.message) {
+    message = error.message;
+  }
+  
   baseToast.fire({ icon: 'error', title: message, background: toastTypes.error, color: fontColor.white })
 }
 

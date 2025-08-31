@@ -31,4 +31,17 @@ if (typeof window !== 'undefined') {
     });
 }
 
+// Response interceptor untuk menangani error
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        // Jika ada response dari server, gunakan message dari response
+        if (error.response?.data?.message) {
+            error.message = error.response.data.message;
+        }
+        
+        return Promise.reject(error);
+    }
+);
+
 export default api;
