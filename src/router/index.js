@@ -4,8 +4,12 @@ import { useAuthStore } from '@/stores/auth';
 import MainLayout from '../layouts/MainLayout.vue';
 import AuthLayout from '../layouts/AuthLayout.vue';
 
+// Import pages
 import LoginPage from '../pages/LoginPage.vue';
 import DashboardPage from '../pages/DashboardPage.vue';
+import WorkspacePage from '../pages/WorkspacePage.vue';
+import ProjectDetailPage from '../pages/ProjectDetailPage.vue';
+import ProfilePage from '../pages/ProfilePage.vue';
 
 const routes = [
     {
@@ -32,6 +36,21 @@ const routes = [
                 path: 'dashboard',
                 name: 'dashboard',
                 component: DashboardPage,
+            },
+            {
+                path: 'profile',
+                name: 'profile',
+                component: ProfilePage,
+            },
+            {
+                path: 'workspaces/:workspaceSlug',
+                name: 'workspace.detail',
+                component: WorkspacePage,
+            },
+            {
+                path: 'workspaces/:workspaceSlug/projects/:projectSlug',
+                name: 'project.detail',
+                component: ProjectDetailPage,
             },
         ],
         meta: { requiresAuth: true }

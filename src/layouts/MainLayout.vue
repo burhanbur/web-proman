@@ -203,11 +203,12 @@ onMounted(() => {
 
 .main-content { flex:1; padding:32px 0; display:flex; align-items:flex-start }
 .container { max-width: 1300px; margin: 0 auto; padding: 0 24px; width: 100% }
-.content-inner { min-height: calc(100vh - 64px - 68px); /* viewport minus header/footer */
+.content-inner { 
+    min-height: calc(100vh - 64px - 68px); /* viewport minus header/footer */
     display: flex;
-    align-items: center; /* center vertically when content is small */
+    align-items: flex-start; /* change to flex-start to align content to top */
     justify-content: flex-start;
-    padding-top: 12px; /* small top spacing so header doesn't overlap */
+    padding-top: 0; /* remove top padding */
 }
 
 .app-footer { border-top: 1px solid rgba(0,0,0,0.06); padding: 18px 0; background: var(--bg-0) }
