@@ -3,215 +3,217 @@
     <!-- Loading State -->
     <div v-if="loading" class="loading-container">
       <div class="loading-spinner"></div>
-      <p>Loading workspace...</p>
+      <p>Memuat workspace...</p>
     </div>
 
     <!-- Workspace Content -->
     <div v-else-if="workspace" class="workspace-content">
-      <!-- Workspace Header -->
-      <div class="workspace-header">
-        <div class="workspace-info">
-          <div class="workspace-avatar">
-            <img v-if="workspace.logo" :src="workspace.logo" :alt="workspace.name" />
-            <div v-else class="workspace-avatar-fallback">
-              {{ getWorkspaceInitials(workspace.name) }}
+      <div class="workspace-container">
+        <!-- Workspace Header -->
+        <div class="workspace-header">
+          <div class="workspace-info">
+            <div class="workspace-avatar">
+              <img v-if="workspace.logo" :src="workspace.logo" :alt="workspace.name" />
+              <div v-else class="workspace-avatar-fallback">
+                {{ getWorkspaceInitials(workspace.name) }}
+              </div>
+            </div>
+            <div class="workspace-details">
+              <h1 class="workspace-name">{{ workspace.name }}</h1>
+        <p v-if="workspace.description" class="workspace-description">{{ workspace.description }}</p>
+              <div class="workspace-meta">
+                <span class="meta-item">
+                  <font-awesome-icon icon="users" size="sm" />
+          {{ workspace.members_count || 0 }} Anggota
+                </span>
+                <span class="meta-item">
+                  <font-awesome-icon icon="folder" size="sm" />
+          {{ projects.length }} Proyek
+                </span>
+                <span class="meta-item">
+                  <font-awesome-icon icon="calendar" size="sm" />
+          Dibuat {{ formatDate(workspace.created_at) }}
+                </span>
+              </div>
             </div>
           </div>
-          <div class="workspace-details">
-            <h1 class="workspace-name">{{ workspace.name }}</h1>
-            <p v-if="workspace.description" class="workspace-description">{{ workspace.description }}</p>
-            <div class="workspace-meta">
-              <span class="meta-item">
-                <font-awesome-icon icon="users" size="sm" />
-                {{ workspace.members_count || 0 }} members
-              </span>
-              <span class="meta-item">
-                <font-awesome-icon icon="folder" size="sm" />
-                {{ projects.length }} projects
-              </span>
-              <span class="meta-item">
-                <font-awesome-icon icon="calendar" size="sm" />
-                Created {{ formatDate(workspace.created_at) }}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div class="workspace-actions">
-          <button class="btn btn-secondary" @click="showInviteModal = true">
-            <font-awesome-icon icon="user-plus" size="sm" />
-            Invite Members
-          </button>
-          <button class="btn btn-primary" @click="showCreateProjectModal = true">
-            <font-awesome-icon icon="plus" size="sm" />
-            New Project
-          </button>
-        </div>
-      </div>
-
-      <!-- Workspace Navigation -->
-      <div class="workspace-nav">
-        <button 
-          :class="['nav-item', { active: activeTab === 'projects' }]"
-          @click="activeTab = 'projects'"
-        >
-          <font-awesome-icon icon="folder" size="sm" />
-          Projects
-        </button>
-        <button 
-          :class="['nav-item', { active: activeTab === 'members' }]"
-          @click="activeTab = 'members'"
-        >
-          <font-awesome-icon icon="users" size="sm" />
-          Members
-        </button>
-        <button 
-          :class="['nav-item', { active: activeTab === 'activity' }]"
-          @click="activeTab = 'activity'"
-        >
-          <font-awesome-icon icon="clock" size="sm" />
-          Activity
-        </button>
-        <button 
-          :class="['nav-item', { active: activeTab === 'settings' }]"
-          @click="activeTab = 'settings'"
-        >
-          <font-awesome-icon icon="cog" size="sm" />
-          Settings
-        </button>
-      </div>
-
-      <!-- Tab Content -->
-      <div class="tab-content">
-        <!-- Projects Tab -->
-        <div v-if="activeTab === 'projects'" class="projects-tab">
-          <div v-if="projects.length === 0" class="empty-state">
-            <font-awesome-icon icon="folder-open" size="3x" class="empty-icon" />
-            <h3>No projects yet</h3>
-            <p>Create your first project to get started</p>
+          <div class="workspace-actions">
+            <button class="btn btn-secondary" @click="showInviteModal = true">
+              <font-awesome-icon icon="user-plus" size="sm" />
+              Undang Anggota
+            </button>
             <button class="btn btn-primary" @click="showCreateProjectModal = true">
               <font-awesome-icon icon="plus" size="sm" />
-              Create Project
+              Buat Proyek
             </button>
           </div>
-          <div v-else class="project-grid">
-            <div 
-              v-for="project in projects" 
-              :key="project.id" 
-              class="project-card"
-              @click="goToProject(project)"
-            >
-              <div class="project-header">
-                <div class="project-color" :style="{ backgroundColor: project.color || '#17a2b8' }"></div>
-                <div class="project-info">
-                  <h3 class="project-name">{{ project.name }}</h3>
-                  <p v-if="project.description" class="project-description">{{ project.description }}</p>
+        </div>
+
+        <!-- Workspace Navigation -->
+        <div class="workspace-nav">
+          <button 
+            :class="['nav-item', { active: activeTab === 'projects' }]"
+            @click="activeTab = 'projects'"
+          >
+            <font-awesome-icon icon="folder" size="sm" />
+            Proyek
+          </button>
+          <button 
+            :class="['nav-item', { active: activeTab === 'members' }]"
+            @click="activeTab = 'members'"
+          >
+            <font-awesome-icon icon="users" size="sm" />
+            Anggota
+          </button>
+          <button 
+            :class="['nav-item', { active: activeTab === 'activity' }]"
+            @click="activeTab = 'activity'"
+          >
+            <font-awesome-icon icon="clock" size="sm" />
+            Aktivitas
+          </button>
+          <button 
+            :class="['nav-item', { active: activeTab === 'settings' }]"
+            @click="activeTab = 'settings'"
+          >
+            <font-awesome-icon icon="cog" size="sm" />
+            Pengaturan
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+          <!-- Projects Tab -->
+          <div v-if="activeTab === 'projects'" class="projects-tab">
+            <div v-if="projects.length === 0" class="empty-state">
+              <font-awesome-icon icon="folder-open" size="3x" class="empty-icon" />
+              <h3>Belum ada proyek</h3>
+              <p>Buat proyek pertama Anda untuk memulai</p>
+              <button class="btn btn-primary" @click="showCreateProjectModal = true">
+                <font-awesome-icon icon="plus" size="sm" />
+                Buat Proyek
+              </button>
+            </div>
+            <div v-else class="project-grid">
+              <div 
+                v-for="project in projects" 
+                :key="project.id" 
+                class="project-card"
+                @click="goToProject(project)"
+              >
+                <div class="project-header">
+                  <div class="project-color" :style="{ backgroundColor: project.color || '#17a2b8' }"></div>
+                  <div class="project-info">
+                    <h3 class="project-name">{{ project.name }}</h3>
+                    <p v-if="project.description" class="project-description">{{ project.description }}</p>
+                  </div>
+                  <div class="project-menu">
+                    <button class="btn-icon" @click.stop="toggleProjectMenu(project.id)">
+                      <font-awesome-icon icon="ellipsis-vertical" size="sm" />
+                    </button>
+                  </div>
                 </div>
-                <div class="project-menu">
-                  <button class="btn-icon" @click.stop="toggleProjectMenu(project.id)">
+                <div class="project-progress">
+                  <div class="progress-bar">
+                    <div 
+                      class="progress-fill" 
+                      :style="{ width: calculateProgress(project) + '%' }"
+                    ></div>
+                  </div>
+                  <span class="progress-text">{{ calculateProgress(project) }}% selesai</span>
+                </div>
+                <div class="project-footer">
+                  <div class="project-stats">
+                    <span class="stat-item">
+                      <font-awesome-icon icon="check-circle" size="sm" />
+                      {{ project.completed_tasks_count || 0 }} selesai
+                    </span>
+                    <span class="stat-item">
+                      <font-awesome-icon icon="circle" size="sm" />
+                      {{ project.tasks_count || 0 }} task
+                    </span>
+                  </div>
+                  <div class="project-members">
+                    <div 
+                      v-for="(member, index) in project.members?.slice(0, 3)" 
+                      :key="member.id"
+                      class="member-avatar small"
+                      :style="{ zIndex: 10 - index }"
+                    >
+                      <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
+                      <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
+                    </div>
+                    <div v-if="project.members?.length > 3" class="member-count-more small">
+                      +{{ project.members.length - 3 }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Members Tab -->
+          <div v-if="activeTab === 'members'" class="members-tab">
+            <div class="members-list">
+              <div 
+                v-for="member in members" 
+                :key="member.id"
+                class="member-item"
+              >
+                <div class="member-avatar">
+                  <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
+                  <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
+                </div>
+                <div class="member-info">
+                  <h4 class="member-name">{{ member.name }}</h4>
+                  <p class="member-email">{{ member.email }}</p>
+                </div>
+                <div class="member-role">
+                  <span class="role-badge" :class="member.role?.toLowerCase()">
+                    {{ member.role || 'Anggota' }}
+                  </span>
+                </div>
+                <div class="member-actions">
+                  <button class="btn-icon">
                     <font-awesome-icon icon="ellipsis-vertical" size="sm" />
                   </button>
                 </div>
               </div>
-              <div class="project-progress">
-                <div class="progress-bar">
-                  <div 
-                    class="progress-fill" 
-                    :style="{ width: calculateProgress(project) + '%' }"
-                  ></div>
+            </div>
+          </div>
+
+          <!-- Activity Tab -->
+          <div v-if="activeTab === 'activity'" class="activity-tab">
+            <div v-if="activities.length === 0" class="empty-state">
+              <font-awesome-icon icon="clock" size="3x" class="empty-icon" />
+              <h3>Belum ada aktivitas terbaru</h3>
+              <p>Aktivitas akan muncul di sini ketika anggota bekerja pada proyek</p>
+            </div>
+            <div v-else class="activity-list">
+              <div 
+                v-for="activity in activities" 
+                :key="activity.id"
+                class="activity-item"
+              >
+                <div class="activity-avatar">
+                  <img v-if="activity.user?.avatar" :src="activity.user.avatar" :alt="activity.user.name" />
+                  <div v-else class="activity-avatar-fallback">{{ getMemberInitials(activity.user?.name) }}</div>
                 </div>
-                <span class="progress-text">{{ calculateProgress(project) }}% complete</span>
-              </div>
-              <div class="project-footer">
-                <div class="project-stats">
-                  <span class="stat-item">
-                    <font-awesome-icon icon="check-circle" size="sm" />
-                    {{ project.completed_tasks_count || 0 }}
-                  </span>
-                  <span class="stat-item">
-                    <font-awesome-icon icon="circle" size="sm" />
-                    {{ project.tasks_count || 0 }}
-                  </span>
-                </div>
-                <div class="project-members">
-                  <div 
-                    v-for="(member, index) in project.members?.slice(0, 3)" 
-                    :key="member.id"
-                    class="member-avatar small"
-                    :style="{ zIndex: 10 - index }"
-                  >
-                    <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
-                    <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
-                  </div>
-                  <div v-if="project.members?.length > 3" class="member-count-more small">
-                    +{{ project.members.length - 3 }}
-                  </div>
+                <div class="activity-content">
+                  <p class="activity-text">{{ activity.description }}</p>
+                  <span class="activity-time">{{ formatDate(activity.created_at) }}</span>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Members Tab -->
-        <div v-if="activeTab === 'members'" class="members-tab">
-          <div class="members-list">
-            <div 
-              v-for="member in members" 
-              :key="member.id"
-              class="member-item"
-            >
-              <div class="member-avatar">
-                <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
-                <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
-              </div>
-              <div class="member-info">
-                <h4 class="member-name">{{ member.name }}</h4>
-                <p class="member-email">{{ member.email }}</p>
-              </div>
-              <div class="member-role">
-                <span class="role-badge" :class="member.role?.toLowerCase()">
-                  {{ member.role || 'Member' }}
-                </span>
-              </div>
-              <div class="member-actions">
-                <button class="btn-icon">
-                  <font-awesome-icon icon="ellipsis-vertical" size="sm" />
-                </button>
-              </div>
+          <!-- Settings Tab -->
+          <div v-if="activeTab === 'settings'" class="settings-tab">
+            <div class="settings-section">
+              <h3>Pengaturan Workspace</h3>
+              <p>Kelola preferensi dan konfigurasi workspace</p>
+              <!-- Settings form would go here -->
             </div>
-          </div>
-        </div>
-
-        <!-- Activity Tab -->
-        <div v-if="activeTab === 'activity'" class="activity-tab">
-          <div v-if="activities.length === 0" class="empty-state">
-            <font-awesome-icon icon="clock" size="3x" class="empty-icon" />
-            <h3>No recent activity</h3>
-            <p>Activities will appear here as members work on projects</p>
-          </div>
-          <div v-else class="activity-list">
-            <div 
-              v-for="activity in activities" 
-              :key="activity.id"
-              class="activity-item"
-            >
-              <div class="activity-avatar">
-                <img v-if="activity.user?.avatar" :src="activity.user.avatar" :alt="activity.user.name" />
-                <div v-else class="activity-avatar-fallback">{{ getMemberInitials(activity.user?.name) }}</div>
-              </div>
-              <div class="activity-content">
-                <p class="activity-text">{{ activity.description }}</p>
-                <span class="activity-time">{{ formatDate(activity.created_at) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Settings Tab -->
-        <div v-if="activeTab === 'settings'" class="settings-tab">
-          <div class="settings-section">
-            <h3>Workspace Settings</h3>
-            <p>Manage workspace preferences and configurations</p>
-            <!-- Settings form would go here -->
           </div>
         </div>
       </div>
@@ -220,9 +222,9 @@
     <!-- Error State -->
     <div v-else class="error-state">
       <font-awesome-icon icon="exclamation-triangle" size="3x" class="error-icon" />
-      <h3>Workspace not found</h3>
-      <p>The workspace you're looking for doesn't exist or you don't have access to it.</p>
-      <router-link to="/dashboard" class="btn btn-primary">Back to Dashboard</router-link>
+      <h3>Workspace tidak ditemukan</h3>
+      <p>Workspace yang Anda cari tidak ada atau Anda tidak memiliki akses.</p>
+      <router-link to="/dashboard" class="btn btn-primary">Kembali ke Dashboard</router-link>
     </div>
   </div>
 </template>
@@ -349,6 +351,9 @@ const toggleProjectMenu = (projectId) => {
 .workspace-page {
   min-height: 100vh;
   background: var(--color-background);
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px 24px; /* reduce top padding to bring content higher */
 }
 
 /* Loading State */
@@ -359,6 +364,15 @@ const toggleProjectMenu = (projectId) => {
   justify-content: center;
   padding: 64px 24px;
   text-align: center;
+}
+
+/* Workspace Container */
+.workspace-container {
+  width: 100%;
+}
+
+.workspace-content {
+  width: 100%;
 }
 
 .loading-spinner {
@@ -382,7 +396,7 @@ const toggleProjectMenu = (projectId) => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  padding: 32px 0 24px;
+  padding: 8px 0 8px; /* tighter vertical spacing */
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -923,6 +937,10 @@ const toggleProjectMenu = (projectId) => {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .workspace-page {
+    padding: 16px;
+  }
+  
   .workspace-header {
     flex-direction: column;
     align-items: flex-start;

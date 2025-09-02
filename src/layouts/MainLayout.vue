@@ -201,7 +201,7 @@ onMounted(() => {
     .topbar-right { display:flex; justify-content:flex-end; flex:1 }
 }
 
-.main-content { flex:1; padding:32px 0; display:flex; align-items:flex-start }
+.main-content { flex:1; padding:16px 0; display:flex; align-items:flex-start }
 .container { max-width: 1300px; margin: 0 auto; padding: 0 24px; width: 100% }
 .content-inner { 
     min-height: calc(100vh - 64px - 68px); /* viewport minus header/footer */

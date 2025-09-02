@@ -22,15 +22,17 @@
 
     <!-- Main Content -->
     <div v-else class="dashboard-content">
-      <!-- Workspaces Section -->
-      <section class="workspaces-section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <font-awesome-icon icon="briefcase" />
-            Workspace Saya
-          </h2>
-          <span class="section-count">{{ workspaces.length }} workspace</span>
-        </div>
+      <!-- Left Column -->
+      <div class="dashboard-left">
+        <!-- Workspaces Section -->
+        <section class="workspaces-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <font-awesome-icon icon="briefcase" />
+              Workspace Saya
+            </h2>
+            <span class="section-count">{{ workspaces.length }} workspace</span>
+          </div>
 
         <!-- Empty State -->
         <div v-if="workspaces.length === 0" class="empty-state">
@@ -78,11 +80,11 @@
               </div>
               <div class="stat-item">
                 <font-awesome-icon icon="users" />
-                <span>{{ workspace.members_count || 0 }} Member</span>
+                <span>{{ workspace.members_count || 0 }} Anggota</span>
               </div>
               <div class="stat-item">
                 <font-awesome-icon icon="tasks" />
-                <span>{{ workspace.tasks_count || 0 }} Task</span>
+                <span>{{ workspace.tasks_count || 0 }} Tugas</span>
               </div>
             </div>
 
@@ -113,118 +115,145 @@
             </div>
           </div>
         </div>
-      </section>
+        </section>
 
-      <!-- Recent Projects Section -->
-      <section v-if="selectedWorkspace" class="projects-section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <font-awesome-icon icon="folder" />
-            Proyek di {{ selectedWorkspace.name }}
-          </h2>
-          <div class="section-actions">
-            <button class="btn btn-secondary" @click="showCreateProjectModal = true">
-              <font-awesome-icon icon="plus" />
-              Buat Proyek
-            </button>
+        <!-- Recent Projects Section -->
+        <section v-if="selectedWorkspace" class="projects-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <font-awesome-icon icon="folder" />
+              Proyek di {{ selectedWorkspace.name }}
+            </h2>
+            <div class="section-actions">
+              <button class="btn btn-secondary" @click="showCreateProjectModal = true">
+                <font-awesome-icon icon="plus" />
+                Buat Proyek
+              </button>
+            </div>
           </div>
-        </div>
 
-        <!-- Project Grid -->
-        <div class="project-grid">
-          <div 
-            v-for="project in projects" 
-            :key="project.id"
-            class="project-card"
-            @click="goToProject(project)"
-          >
-            <div class="project-header">
-              <div class="project-color" :style="{ backgroundColor: project.color || '#17a2b8' }"></div>
-              <div class="project-info">
-                <h4 class="project-name">{{ project.name }}</h4>
-                <p class="project-description">{{ project.description || 'Tidak ada deskripsi' }}</p>
+          <!-- Project Grid -->
+          <div class="project-grid">
+            <div 
+              v-for="project in projects" 
+              :key="project.id"
+              class="project-card"
+              @click="goToProject(project)"
+            >
+              <div class="project-header">
+                <div class="project-color" :style="{ backgroundColor: project.color || '#17a2b8' }"></div>
+                <div class="project-info">
+                    <h4 class="project-name">{{ project.name }}</h4>
+                    <div class="project-meta-line">
+                      <span class="project-workspace">{{ project.workspace?.name || project.workspace_name || '' }}</span>
+                    </div>
+                    <p class="project-description">{{ project.description || 'Tidak ada deskripsi' }}</p>
+                </div>
+                <div class="project-menu">
+                  <button class="btn-icon" @click.stop="toggleProjectMenu(project.id)">
+                    <font-awesome-icon icon="ellipsis-v" />
+                  </button>
+                </div>
               </div>
-              <div class="project-menu">
-                <button class="btn-icon" @click.stop="toggleProjectMenu(project.id)">
-                  <font-awesome-icon icon="ellipsis-v" />
-                </button>
-              </div>
-            </div>
 
-            <div class="project-progress">
-              <div class="progress-bar">
-                <div 
-                  class="progress-fill" 
-                  :style="{ width: `${calculateProgress(project)}%` }"
-                ></div>
+              <div class="project-progress">
+                <div class="progress-bar">
+                  <div 
+                    class="progress-fill" 
+                    :style="{ width: `${calculateProgress(project)}%` }"
+                  ></div>
+                </div>
+                <span class="progress-text">{{ calculateProgress(project) }}% selesai</span>
               </div>
-              <span class="progress-text">{{ calculateProgress(project) }}% selesai</span>
-            </div>
 
-            <div class="project-stats">
-              <div class="stat-item">
-                <font-awesome-icon icon="tasks" />
-                <span>{{ project.tasks_count || 0 }}</span>
+              <div class="project-stats">
+                <div class="stat-item">
+                  <font-awesome-icon icon="tasks" />
+                  <span>{{ project.tasks_count || 0 }}</span>
+                </div>
+                <div class="stat-item">
+                  <font-awesome-icon icon="check-circle" />
+                  <span>{{ project.completed_tasks_count || 0 }}</span>
+                </div>
+                <div class="stat-item">
+                  <font-awesome-icon icon="users" />
+                  <span>{{ project.members_count || 0 }}</span>
+                </div>
               </div>
-              <div class="stat-item">
-                <font-awesome-icon icon="check-circle" />
-                <span>{{ project.completed_tasks_count || 0 }}</span>
-              </div>
-              <div class="stat-item">
-                <font-awesome-icon icon="users" />
-                <span>{{ project.members_count || 0 }}</span>
-              </div>
-            </div>
 
-            <div class="project-members">
-              <div class="member-avatars">
-                <div 
-                  v-for="member in project.members?.slice(0, 4)" 
-                  :key="member.id"
-                  class="member-avatar small"
-                  :title="member.name"
-                >
-                  <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
-                  <div v-else class="member-avatar-fallback">
-                    {{ getMemberInitials(member.name) }}
+              <div class="project-members">
+                <div class="member-avatars">
+                  <div 
+                    v-for="member in project.members?.slice(0, 4)" 
+                    :key="member.id"
+                    class="member-avatar small"
+                    :title="member.name"
+                  >
+                    <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
+                    <div v-else class="member-avatar-fallback">
+                      {{ getMemberInitials(member.name) }}
+                    </div>
+                  </div>
+                  <div v-if="project.members?.length > 4" class="member-count-more small">
+                    +{{ project.members.length - 4 }}
                   </div>
                 </div>
-                <div v-if="project.members?.length > 4" class="member-count-more small">
-                  +{{ project.members.length - 4 }}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column -->
+      <div class="dashboard-right">
+            <!-- Recent Tasks Section -->
+            <section class="recent-tasks-section">
+              <div class="section-header">
+                <h2 class="section-title">
+                  <font-awesome-icon icon="list" />
+                  Tugas Terbaru
+                </h2>
+              </div>
+
+              <div class="task-list">
+                <div v-for="task in recentTasks" :key="task.id" class="task-item" @click="goToProject(task.project)">
+                  <div class="task-meta">
+                    <div class="task-title">{{ task.title }}</div>
+                    <div class="task-project">{{ task.project?.workspace?.name || task.project?.workspace_name || task.project?.name || '—' }}</div>
+                  </div>
+                  <div class="task-time">{{ formatDate(task.updated_at || task.created_at) }}</div>
                 </div>
               </div>
-            </div>
+            </section>
+
+        <!-- Recent Activity Section -->
+        <section class="activity-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <font-awesome-icon icon="clock" />
+              Aktivitas Terbaru
+            </h2>
           </div>
-        </div>
-      </section>
 
-      <!-- Recent Activity Section -->
-      <section class="activity-section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <font-awesome-icon icon="clock" />
-            Aktivitas Terbaru
-          </h2>
-        </div>
-
-        <div class="activity-list">
-          <div v-for="activity in recentActivities" :key="activity.id" class="activity-item">
-            <div class="activity-avatar">
-              <img v-if="activity.user?.avatar" :src="activity.user.avatar" :alt="activity.user.name" />
-              <div v-else class="activity-avatar-fallback">
-                {{ getMemberInitials(activity.user?.name || 'U') }}
+          <div class="activity-list">
+            <div v-for="activity in recentActivities" :key="activity.id" class="activity-item">
+              <div class="activity-avatar">
+                <img v-if="activity.user?.avatar" :src="activity.user.avatar" :alt="activity.user.name" />
+                <div v-else class="activity-avatar-fallback">
+                  {{ getMemberInitials(activity.user?.name || 'U') }}
+                </div>
+              </div>
+              <div class="activity-content">
+                <p class="activity-text">
+                  <strong>{{ activity.user?.name || 'User' }}</strong>
+                  {{ activity.description }}
+                </p>
+                <span class="activity-time">{{ formatDate(activity.created_at) }}</span>
               </div>
             </div>
-            <div class="activity-content">
-              <p class="activity-text">
-                <strong>{{ activity.user?.name || 'User' }}</strong>
-                {{ activity.description }}
-              </p>
-              <span class="activity-time">{{ formatDate(activity.created_at) }}</span>
-            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
 
     <!-- Modals will be added here later -->
@@ -248,6 +277,7 @@ const workspaces = ref([]);
 const selectedWorkspace = ref(null);
 const projects = ref([]);
 const recentActivities = ref([]);
+const recentTasks = ref([]);
 const showCreateWorkspaceModal = ref(false);
 const showCreateProjectModal = ref(false);
 
@@ -255,6 +285,7 @@ const showCreateProjectModal = ref(false);
 onMounted(async () => {
   await loadWorkspaces();
   await loadRecentActivities();
+  await loadRecentTasks();
   loading.value = false;
 });
 
@@ -301,17 +332,71 @@ const loadRecentActivities = async () => {
         id: 1,
         user: { name: 'John Doe', avatar: null },
         description: 'membuat task baru "Setup Database"',
-        created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+        created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString()
       },
       {
         id: 2,
         user: { name: 'Jane Smith', avatar: null },
         description: 'menyelesaikan task "Design UI"',
+        created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 3,
+        user: { name: 'Mike Johnson', avatar: null },
+        description: 'menambahkan komentar di "API Integration"',
         created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 4,
+        user: { name: 'Sarah Wilson', avatar: null },
+        description: 'mengupload dokumen "Requirements.pdf"',
+        created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 5,
+        user: { name: 'Alex Brown', avatar: null },
+        description: 'memindahkan task "Testing" ke Done',
+        created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 6,
+        user: { name: 'Lisa Davis', avatar: null },
+        description: 'membuat proyek baru "Mobile App"',
+        created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
       }
     ];
   } catch (error) {
     console.error('Error loading activities:', error);
+  }
+};
+
+// Load recent tasks (shows on the right column above activities)
+const loadRecentTasks = async () => {
+  try {
+    // Ideally this comes from an API like taskService.recent()
+    // For now provide mock data showing project.workspace usage
+    recentTasks.value = [
+      {
+        id: 101,
+        title: 'Setup Database',
+        project: { id: 11, name: 'API Integration System', slug: 'api-integration', workspace: { id: 1, name: 'Academic Affairs Workspace', slug: 'academic-affairs' } },
+        updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      },
+      {
+        id: 102,
+        title: 'Design UI',
+        project: { id: 12, name: 'Mobile App ProMan', slug: 'mobile-app', workspace_name: 'Development Team Workspace', workspace: { id: 2, name: 'Development Team Workspace', slug: 'development-team' } },
+        updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 103,
+        title: 'Write Requirements',
+        project: { id: 13, name: 'Website Official Universitas', slug: 'website-official', workspace: { id: 3, name: 'Marketing Team Workspace', slug: 'marketing' } },
+        updated_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  } catch (error) {
+    console.error('Error loading recent tasks:', error);
   }
 };
 
@@ -326,7 +411,7 @@ const getMemberInitials = (name) => {
 
 const getUserRole = (workspace) => {
   // This would come from the workspace data
-  return workspace.user_role || 'Member';
+  return workspace.user_role || 'Anggota';
 };
 
 const calculateProgress = (project) => {
@@ -376,6 +461,23 @@ const toggleProjectMenu = (projectId) => {
   max-width: 1400px;
   margin: 0 auto;
   padding: 24px;
+}
+
+/* Dashboard Content Layout */
+.dashboard-content {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 32px;
+  align-items: start;
+}
+
+.dashboard-left {
+  min-width: 0; /* Allow shrinking */
+}
+
+.dashboard-right {
+  position: sticky;
+  top: 24px;
 }
 
 /* Page Header */
@@ -432,9 +534,12 @@ const toggleProjectMenu = (projectId) => {
 
 /* Section Styles */
 .workspaces-section,
-.projects-section,
-.activity-section {
+.projects-section {
   margin-bottom: 48px;
+}
+
+.activity-section {
+  margin-bottom: 24px;
 }
 
 .section-header {
@@ -491,8 +596,8 @@ const toggleProjectMenu = (projectId) => {
 /* Workspace Grid */
 .workspace-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
 }
 
 .workspace-card {
@@ -677,8 +782,8 @@ const toggleProjectMenu = (projectId) => {
 /* Project Grid */
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
 }
 
 .project-card {
@@ -733,6 +838,21 @@ const toggleProjectMenu = (projectId) => {
   white-space: nowrap;
 }
 
+.project-meta-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.project-workspace {
+  font-size: 12px;
+  color: var(--color-muted);
+  background: rgba(23,162,184,0.06);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
 .project-progress {
   margin-bottom: 16px;
 }
@@ -769,16 +889,74 @@ const toggleProjectMenu = (projectId) => {
 }
 
 /* Activity Section */
-.activity-list {
+.activity-section {
   background: var(--bg-0);
   border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+/* Recent Tasks Section */
+.recent-tasks-section {
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
   border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.task-item:hover {
+  background: var(--bg-1);
+}
+
+.task-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.task-title {
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.task-project {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.task-time {
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.activity-list {
+  max-height: 600px;
+  overflow-y: auto;
 }
 
 .activity-item {
   display: flex;
   gap: 12px;
-  padding: 16px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -880,6 +1058,18 @@ const toggleProjectMenu = (projectId) => {
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .dashboard-content {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .dashboard-right {
+    position: static;
+    order: -1; /* Show activity first on mobile */
+  }
+}
+
 @media (max-width: 768px) {
   .dashboard-page {
     padding: 16px;
