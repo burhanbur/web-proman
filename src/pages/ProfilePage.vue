@@ -1,8 +1,8 @@
 <template>
   <div class="profile-page">
     <div class="profile-header">
-      <h1 class="page-title">Profile Settings</h1>
-      <p class="page-description">Manage your account settings and preferences</p>
+      <h1 class="page-title">Pengaturan Profil</h1>
+      <p class="page-description">Kelola pengaturan akun dan preferensi Anda</p>
     </div>
 
     <div class="profile-content">
@@ -11,14 +11,14 @@
         <div class="section-header">
           <h2 class="section-title">
             <font-awesome-icon icon="user" size="sm" />
-            Personal Information
+            Informasi Pribadi
           </h2>
         </div>
         <div class="section-content">
           <form @submit.prevent="updateProfile" class="profile-form">
             <!-- Avatar Upload -->
             <div class="form-group avatar-group">
-              <label class="form-label">Profile Photo</label>
+              <label class="form-label">Foto Profil</label>
               <div class="avatar-upload">
                 <div class="current-avatar">
                   <img v-if="profile.avatar" :src="profile.avatar" :alt="profile.name" class="avatar-image" />
@@ -27,11 +27,11 @@
                 <div class="avatar-actions">
                   <button type="button" class="btn btn-secondary" @click="triggerAvatarUpload">
                     <font-awesome-icon icon="camera" size="sm" />
-                    Change Photo
+                    Ubah Foto
                   </button>
                   <button v-if="profile.avatar" type="button" class="btn btn-outline" @click="removeAvatar">
                     <font-awesome-icon icon="trash" size="sm" />
-                    Remove
+                    Hapus
                   </button>
                 </div>
                 <input 
@@ -47,24 +47,24 @@
             <!-- Basic Information -->
             <div class="form-row">
               <div class="form-group">
-                <label for="name" class="form-label">Full Name</label>
+                <label for="name" class="form-label">Nama Lengkap</label>
                 <input 
                   id="name"
                   v-model="profile.name" 
                   type="text" 
                   class="form-input"
-                  placeholder="Enter your full name"
+                  placeholder="Masukkan nama lengkap Anda"
                   required
                 />
               </div>
               <div class="form-group">
-                <label for="email" class="form-label">Email Address</label>
+                <label for="email" class="form-label">Alamat Email</label>
                 <input 
                   id="email"
                   v-model="profile.email" 
                   type="email" 
                   class="form-input"
-                  placeholder="Enter your email"
+                  placeholder="Masukkan email Anda"
                   required
                 />
               </div>
@@ -72,35 +72,35 @@
 
             <div class="form-row">
               <div class="form-group">
-                <label for="phone" class="form-label">Phone Number</label>
+                <label for="phone" class="form-label">Nomor Telepon</label>
                 <input 
                   id="phone"
                   v-model="profile.phone" 
                   type="tel" 
                   class="form-input"
-                  placeholder="Enter your phone number"
+                  placeholder="Masukkan nomor telepon"
                 />
               </div>
               <div class="form-group">
-                <label for="location" class="form-label">Location</label>
+                <label for="location" class="form-label">Lokasi</label>
                 <input 
                   id="location"
                   v-model="profile.location" 
                   type="text" 
                   class="form-input"
-                  placeholder="City, Country"
+                  placeholder="Kota, Negara"
                 />
               </div>
             </div>
 
             <div class="form-group">
-              <label for="bio" class="form-label">Bio</label>
+              <label for="bio" class="form-label">Tentang Saya</label>
               <textarea 
                 id="bio"
                 v-model="profile.bio" 
                 class="form-textarea"
                 rows="4"
-                placeholder="Tell us about yourself..."
+                placeholder="Ceritakan tentang diri Anda..."
               ></textarea>
             </div>
 
@@ -108,7 +108,7 @@
               <button type="submit" class="btn btn-primary" :disabled="profileLoading">
                 <font-awesome-icon v-if="profileLoading" icon="spinner" size="sm" spin />
                 <font-awesome-icon v-else icon="save" size="sm" />
-                {{ profileLoading ? 'Saving...' : 'Save Changes' }}
+                {{ profileLoading ? 'Menyimpan...' : 'Simpan Perubahan' }}
               </button>
             </div>
           </form>
@@ -120,53 +120,53 @@
         <div class="section-header">
           <h2 class="section-title">
             <font-awesome-icon icon="lock" size="sm" />
-            Change Password
+            Ubah Kata Sandi
           </h2>
         </div>
         <div class="section-content">
           <form @submit.prevent="updatePassword" class="password-form">
             <div class="form-group">
-              <label for="current-password" class="form-label">Current Password</label>
+              <label for="current-password" class="form-label">Kata Sandi Saat Ini</label>
               <input 
                 id="current-password"
                 v-model="passwordForm.currentPassword" 
                 type="password" 
                 class="form-input"
-                placeholder="Enter current password"
+                  placeholder="Masukkan kata sandi saat ini"
                 required
               />
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label for="new-password" class="form-label">New Password</label>
+                <label for="new-password" class="form-label">Kata Sandi Baru</label>
                 <input 
                   id="new-password"
                   v-model="passwordForm.newPassword" 
                   type="password" 
                   class="form-input"
-                  placeholder="Enter new password"
+                  placeholder="Masukkan kata sandi baru"
                   required
                 />
               </div>
               <div class="form-group">
-                <label for="confirm-password" class="form-label">Confirm New Password</label>
+                <label for="confirm-password" class="form-label">Konfirmasi Kata Sandi Baru</label>
                 <input 
                   id="confirm-password"
                   v-model="passwordForm.confirmPassword" 
                   type="password" 
                   class="form-input"
-                  placeholder="Confirm new password"
+                  placeholder="Konfirmasi kata sandi baru"
                   required
                 />
               </div>
             </div>
 
             <div class="form-actions">
-              <button type="submit" class="btn btn-primary" :disabled="passwordLoading">
+                <button type="submit" class="btn btn-primary" :disabled="passwordLoading">
                 <font-awesome-icon v-if="passwordLoading" icon="spinner" size="sm" spin />
                 <font-awesome-icon v-else icon="key" size="sm" />
-                {{ passwordLoading ? 'Updating...' : 'Update Password' }}
+                {{ passwordLoading ? 'Memperbarui...' : 'Perbarui Kata Sandi' }}
               </button>
             </div>
           </form>
@@ -178,13 +178,13 @@
         <div class="section-header">
           <h2 class="section-title">
             <font-awesome-icon icon="cog" size="sm" />
-            Preferences
+            Preferensi
           </h2>
         </div>
         <div class="section-content">
           <form @submit.prevent="updatePreferences" class="preferences-form">
             <div class="form-group">
-              <label class="form-label">Theme</label>
+              <label class="form-label">Tema</label>
               <div class="radio-group">
                 <label class="radio-option">
                   <input 
@@ -195,7 +195,7 @@
                   />
                   <span class="radio-label">
                     <font-awesome-icon icon="sun" size="sm" />
-                    Light
+                    Terang
                   </span>
                 </label>
                 <label class="radio-option">
@@ -207,7 +207,7 @@
                   />
                   <span class="radio-label">
                     <font-awesome-icon icon="moon" size="sm" />
-                    Dark
+                    Gelap
                   </span>
                 </label>
                 <label class="radio-option">
@@ -219,14 +219,14 @@
                   />
                   <span class="radio-label">
                     <font-awesome-icon icon="circle-half-stroke" size="sm" />
-                    Auto
+                    Otomatis
                   </span>
                 </label>
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Language</label>
+              <label class="form-label">Bahasa</label>
               <select v-model="preferences.language" class="form-select">
                 <option value="en">English</option>
                 <option value="id">Bahasa Indonesia</option>
@@ -234,7 +234,7 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Timezone</label>
+              <label class="form-label">Zona Waktu</label>
               <select v-model="preferences.timezone" class="form-select">
                 <option value="Asia/Jakarta">Asia/Jakarta (WIB)</option>
                 <option value="Asia/Makassar">Asia/Makassar (WITA)</option>
@@ -244,28 +244,28 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Notifications</label>
+              <label class="form-label">Notifikasi</label>
               <div class="checkbox-group">
                 <label class="checkbox-option">
                   <input 
                     v-model="preferences.emailNotifications" 
                     type="checkbox"
                   />
-                  <span class="checkbox-label">Email notifications</span>
+                  <span class="checkbox-label">Notifikasi email</span>
                 </label>
                 <label class="checkbox-option">
                   <input 
                     v-model="preferences.pushNotifications" 
                     type="checkbox"
                   />
-                  <span class="checkbox-label">Push notifications</span>
+                  <span class="checkbox-label">Notifikasi push</span>
                 </label>
                 <label class="checkbox-option">
                   <input 
                     v-model="preferences.taskReminders" 
                     type="checkbox"
                   />
-                  <span class="checkbox-label">Task reminders</span>
+                  <span class="checkbox-label">Pengingat tugas</span>
                 </label>
               </div>
             </div>
@@ -274,7 +274,7 @@
               <button type="submit" class="btn btn-primary" :disabled="preferencesLoading">
                 <font-awesome-icon v-if="preferencesLoading" icon="spinner" size="sm" spin />
                 <font-awesome-icon v-else icon="save" size="sm" />
-                {{ preferencesLoading ? 'Saving...' : 'Save Preferences' }}
+                {{ preferencesLoading ? 'Menyimpan...' : 'Simpan Preferensi' }}
               </button>
             </div>
           </form>
@@ -286,30 +286,30 @@
         <div class="section-header">
           <h2 class="section-title">
             <font-awesome-icon icon="exclamation-triangle" size="sm" />
-            Danger Zone
+            Zona Berbahaya
           </h2>
         </div>
         <div class="section-content">
           <div class="danger-actions">
             <div class="danger-item">
               <div class="danger-info">
-                <h3>Export Data</h3>
-                <p>Download a copy of your data including projects, tasks, and comments.</p>
+                <h3>Ekspor Data</h3>
+                <p>Unduh salinan data Anda termasuk proyek, tugas, dan komentar.</p>
               </div>
               <button class="btn btn-outline" @click="exportData">
                 <font-awesome-icon icon="download" size="sm" />
-                Export
+                Ekspor
               </button>
             </div>
             
             <div class="danger-item">
               <div class="danger-info">
-                <h3>Delete Account</h3>
-                <p>Permanently delete your account and all associated data. This action cannot be undone.</p>
+                <h3>Hapus Akun</h3>
+                <p>Hapus akun Anda dan semua data terkait secara permanen. Tindakan ini tidak dapat dibatalkan.</p>
               </div>
               <button class="btn btn-danger" @click="showDeleteConfirm = true">
                 <font-awesome-icon icon="trash" size="sm" />
-                Delete Account
+                Hapus Akun
               </button>
             </div>
           </div>
@@ -321,21 +321,21 @@
     <div v-if="showDeleteConfirm" class="modal-overlay" @click="showDeleteConfirm = false">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>Delete Account</h3>
+          <h3>Hapus Akun</h3>
           <button class="modal-close" @click="showDeleteConfirm = false">
             <font-awesome-icon icon="times" size="sm" />
           </button>
         </div>
         <div class="modal-body">
-          <p>Are you sure you want to delete your account? This action cannot be undone and will permanently remove:</p>
+          <p>Apakah Anda yakin ingin menghapus akun Anda? Tindakan ini tidak dapat dibatalkan dan akan menghapus secara permanen:</p>
           <ul>
-            <li>Your profile and personal information</li>
-            <li>All your projects and tasks</li>
-            <li>Your comments and attachments</li>
-            <li>Your workspace memberships</li>
+            <li>Profil dan informasi pribadi Anda</li>
+            <li>Semua proyek dan tugas Anda</li>
+            <li>Komentar dan lampiran Anda</li>
+            <li>Keanggotaan workspace Anda</li>
           </ul>
           <div class="form-group">
-            <label class="form-label">Type "DELETE" to confirm:</label>
+            <label class="form-label">Ketik "DELETE" untuk konfirmasi:</label>
             <input 
               v-model="deleteConfirmText" 
               type="text" 
@@ -345,14 +345,14 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showDeleteConfirm = false">Cancel</button>
+          <button class="btn btn-secondary" @click="showDeleteConfirm = false">Batal</button>
           <button 
             class="btn btn-danger" 
             :disabled="deleteConfirmText !== 'DELETE'"
             @click="deleteAccount"
           >
             <font-awesome-icon icon="trash" size="sm" />
-            Delete Account
+            Hapus Akun
           </button>
         </div>
       </div>
@@ -439,12 +439,12 @@ const updateProfile = async () => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Update auth store
-    authStore.user = { ...authStore.user, ...profile.value };
+  // Update auth store
+  authStore.user = { ...authStore.user, ...profile.value };
     
-    successToast('Profile updated successfully');
+  successToast('Profil berhasil diperbarui');
   } catch (error) {
-    errorToast('Failed to update profile');
+  errorToast('Gagal memperbarui profil');
   } finally {
     profileLoading.value = false;
   }
@@ -453,12 +453,12 @@ const updateProfile = async () => {
 // Password update
 const updatePassword = async () => {
   if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
-    errorToast('New passwords do not match');
+  errorToast('Kata sandi baru tidak cocok');
     return;
   }
   
   if (passwordForm.value.newPassword.length < 8) {
-    errorToast('Password must be at least 8 characters long');
+  errorToast('Kata sandi harus memiliki minimal 8 karakter');
     return;
   }
   
@@ -467,7 +467,7 @@ const updatePassword = async () => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    successToast('Password updated successfully');
+  successToast('Kata sandi berhasil diperbarui');
     
     // Clear form
     passwordForm.value = {
@@ -476,7 +476,7 @@ const updatePassword = async () => {
       confirmPassword: ''
     };
   } catch (error) {
-    errorToast('Failed to update password');
+  errorToast('Gagal memperbarui kata sandi');
   } finally {
     passwordLoading.value = false;
   }
@@ -504,9 +504,9 @@ const updatePreferences = async () => {
       }
     }
     
-    successToast('Preferences updated successfully');
+  successToast('Preferensi berhasil diperbarui');
   } catch (error) {
-    errorToast('Failed to update preferences');
+  errorToast('Gagal memperbarui preferensi');
   } finally {
     preferencesLoading.value = false;
   }
@@ -522,13 +522,13 @@ const handleAvatarUpload = (event) => {
   if (file) {
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      errorToast('Please select a valid image file');
+  errorToast('Silakan pilih file gambar yang valid');
       return;
     }
     
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
-      errorToast('Image must be smaller than 5MB');
+  errorToast('Gambar harus berukuran kurang dari 5MB');
       return;
     }
     
@@ -551,9 +551,9 @@ const removeAvatar = () => {
 // Account actions
 const exportData = async () => {
   try {
-    successToast('Data export started. You will receive an email when ready.');
+  successToast('Ekspor data dimulai. Anda akan menerima email saat selesai.');
   } catch (error) {
-    errorToast('Failed to start data export');
+  errorToast('Gagal memulai ekspor data');
   }
 };
 
@@ -562,11 +562,11 @@ const deleteAccount = async () => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    successToast('Account deleted successfully');
+  successToast('Akun berhasil dihapus');
     await authStore.logout();
     router.push('/login');
   } catch (error) {
-    errorToast('Failed to delete account');
+  errorToast('Gagal menghapus akun');
   }
 };
 </script>
