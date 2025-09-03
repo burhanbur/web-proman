@@ -79,7 +79,9 @@ import {
   faStop,
   faForward,
   faBackward,
-  faRefresh
+  faRefresh,
+  faColumns,
+  faEllipsisH
 } from '@fortawesome/free-solid-svg-icons';
 
 // Add icons to the library
@@ -163,5 +165,7 @@ library.add(
   faStop,
   faForward,
   faBackward,
-  faRefresh
+  faRefresh,
+  faColumns,
+  faEllipsisH
 );

@@ -195,17 +195,21 @@ onMounted(() => {
 /* compress header content on very wide screens so brand/actions don't drift too far */
 @media (min-width: 1700px) {
     .topbar { padding: 0 28px }
-    .topbar-left, .topbar-right { max-width: 1400px; margin: 0 auto; width: 100% }
+    .topbar-left, .topbar-right { max-width: 1600px; margin: 0 auto; width: 100% }
     .topbar { justify-content: center }
     .topbar-left { display:flex; justify-content:flex-start; flex:1 }
     .topbar-right { display:flex; justify-content:flex-end; flex:1 }
 }
 
 .main-content { flex:1; padding:16px 0; display:flex; align-items:flex-start }
-.container { max-width: 1300px; margin: 0 auto; padding: 0 24px; width: 100% }
+.container { 
+    max-width: 1600px; 
+    margin: 0 auto; 
+    padding: 0 24px; 
+    width: 100% }
 .content-inner { 
     min-height: calc(100vh - 64px - 68px); /* viewport minus header/footer */
-    display: flex;
+    /* display: flex; */
     align-items: flex-start; /* change to flex-start to align content to top */
     justify-content: flex-start;
     padding-top: 0; /* remove top padding */
