@@ -263,7 +263,7 @@ const loadWorkspace = async () => {
     const workspaceSlug = route.params.workspaceSlug;
     
     // Load workspace details
-    const workspaceResponse = await workspaceService.getWorkspace(workspaceSlug);
+    const workspaceResponse = await workspaceService.get(workspaceSlug);
     workspace.value = workspaceResponse.data.data;
     
     // Load projects
@@ -284,8 +284,8 @@ const loadWorkspace = async () => {
 // Load projects
 const loadProjects = async (workspaceSlug) => {
   try {
-    const response = await projectService.getProjects(workspaceSlug);
-    projects.value = response.data.data || [];
+    const response = await workspaceService.get(workspaceSlug);
+    projects.value = response.data.data.projects || [];
   } catch (error) {
     console.error('Error loading projects:', error);
   }
@@ -294,8 +294,8 @@ const loadProjects = async (workspaceSlug) => {
 // Load members
 const loadMembers = async (workspaceSlug) => {
   try {
-    const response = await workspaceService.getWorkspaceMembers(workspaceSlug);
-    members.value = response.data.data || [];
+    const response = await workspaceService.get(workspaceSlug);
+    members.value = response.data.data.members || [];
   } catch (error) {
     console.error('Error loading members:', error);
   }

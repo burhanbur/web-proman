@@ -1,9 +1,9 @@
 <template>
   <div class="project-detail-page">
     <!-- Loading State -->
-    <div v-if="loading" class="loading-container">
+      <div v-if="loading" class="loading-container">
       <div class="loading-spinner"></div>
-      <p>Loading project...</p>
+      <p>Memuat proyek...</p>
     </div>
 
     <!-- Project Content -->
@@ -26,28 +26,24 @@
               <div class="project-stats">
                 <span class="stat-item">
                   <font-awesome-icon icon="check-circle" size="sm" />
-                  {{ project.completed_tasks_count || 0 }} completed
+                      {{ project.completed_tasks_count || 0 }} selesai
                 </span>
                 <span class="stat-item">
                   <font-awesome-icon icon="circle" size="sm" />
-                  {{ project.tasks_count || 0 }} total tasks
+                      {{ project.tasks_count || 0 }} total tugas
                 </span>
                 <span class="stat-item">
                   <font-awesome-icon icon="users" size="sm" />
-                  {{ project.members?.length || 0 }} members
+                      {{ project.members?.length || 0 }} anggota
                 </span>
               </div>
             </div>
           </div>
         </div>
         <div class="project-actions">
-          <button class="btn btn-secondary" @click="showInviteModal = true">
-            <font-awesome-icon icon="user-plus" size="sm" />
-            Add Member
-          </button>
           <button class="btn btn-primary" @click="showCreateTaskModal = true">
             <font-awesome-icon icon="plus" size="sm" />
-            New Task
+            Tugas Baru
           </button>
         </div>
       </div>
@@ -59,28 +55,42 @@
           @click="activeView = 'board'"
         >
           <font-awesome-icon icon="table-columns" size="sm" />
-          Board
+          Papan
         </button>
         <button 
           :class="['nav-item', { active: activeView === 'list' }]"
           @click="activeView = 'list'"
         >
           <font-awesome-icon icon="list" size="sm" />
-          List
+          Daftar
         </button>
         <button 
           :class="['nav-item', { active: activeView === 'timeline' }]"
           @click="activeView = 'timeline'"
         >
           <font-awesome-icon icon="calendar" size="sm" />
-          Timeline
+          Linimasa
         </button>
         <button 
           :class="['nav-item', { active: activeView === 'files' }]"
           @click="activeView = 'files'"
         >
           <font-awesome-icon icon="folder" size="sm" />
-          Files
+          Berkas
+        </button>
+        <button 
+          :class="['nav-item', { active: activeView === 'members' }]"
+          @click="activeView = 'members'"
+        >
+          <font-awesome-icon icon="users" size="sm" />
+          Anggota
+        </button>
+        <button 
+          :class="['nav-item', { active: activeView === 'activities' }]"
+          @click="activeView = 'activities'"
+        >
+          <font-awesome-icon icon="clock" size="sm" />
+          Aktivitas
         </button>
       </div>
 
@@ -161,34 +171,34 @@
           <div class="list-header">
             <div class="list-filters">
               <select v-model="filterStatus" class="filter-select">
-                <option value="">All Status</option>
+                <option value="">Semua Status</option>
                 <option v-for="status in taskStatuses" :key="status.id" :value="status.id">
                   {{ status.name }}
                 </option>
               </select>
               <select v-model="filterAssignee" class="filter-select">
-                <option value="">All Assignees</option>
+                <option value="">Semua Penugas</option>
                 <option v-for="member in project.members" :key="member.id" :value="member.id">
                   {{ member.name }}
                 </option>
               </select>
               <select v-model="filterPriority" class="filter-select">
-                <option value="">All Priorities</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
+                <option value="">Semua Prioritas</option>
+                <option value="low">Rendah</option>
+                <option value="medium">Sedang</option>
+                <option value="high">Tinggi</option>
+                <option value="urgent">Mendesak</option>
               </select>
             </div>
           </div>
           <div class="task-list">
             <div class="task-list-header">
-              <div class="task-col task-col-title">Task</div>
+              <div class="task-col task-col-title">Tugas</div>
               <div class="task-col task-col-status">Status</div>
-              <div class="task-col task-col-priority">Priority</div>
-              <div class="task-col task-col-assignee">Assignee</div>
-              <div class="task-col task-col-due-date">Due Date</div>
-              <div class="task-col task-col-actions">Actions</div>
+              <div class="task-col task-col-priority">Prioritas</div>
+              <div class="task-col task-col-assignee">Penugasan</div>
+              <div class="task-col task-col-due-date">Jatuh Tempo</div>
+              <div class="task-col task-col-actions">Aksi</div>
             </div>
             <div 
               v-for="task in filteredTasks" 
@@ -212,17 +222,17 @@
                 </div>
               </div>
               <div class="task-col task-col-status">
-                <span class="status-badge" :class="task.status?.toLowerCase()">
-                  {{ task.status }}
+                <span class="status-badge" :class="task.status?.name.toLowerCase()">
+                  {{ task.status?.name }}
                 </span>
               </div>
               <div class="task-col task-col-priority">
-                <div class="priority-badge" :class="task.priority?.toLowerCase()">
+                <div class="priority-badge" :class="task.priority?.name.toLowerCase()">
                   <font-awesome-icon 
-                    :icon="getPriorityIcon(task.priority)" 
+                    :icon="getPriorityIcon(task.priority.name)" 
                     size="sm" 
                   />
-                  {{ task.priority }}
+                  {{ task.priority.name }}
                 </div>
               </div>
               <div class="task-col task-col-assignee">
@@ -253,10 +263,10 @@
 
         <!-- Timeline View -->
         <div v-if="activeView === 'timeline'" class="timeline-view">
-          <div class="timeline-placeholder">
+            <div class="timeline-placeholder">
             <font-awesome-icon icon="calendar" size="3x" class="placeholder-icon" />
-            <h3>Timeline View</h3>
-            <p>Timeline view will be implemented here</p>
+            <h3>Linimasa</h3>
+            <p>Linimasa akan ditampilkan di sini</p>
           </div>
         </div>
 
@@ -264,8 +274,115 @@
         <div v-if="activeView === 'files'" class="files-view">
           <div class="files-placeholder">
             <font-awesome-icon icon="folder" size="3x" class="placeholder-icon" />
-            <h3>Project Files</h3>
-            <p>File management will be implemented here</p>
+            <h3>Berkas Proyek</h3>
+            <p>Manajemen berkas akan ditampilkan di sini</p>
+          </div>
+        </div>
+
+        <!-- Members View -->
+        <div v-if="activeView === 'members'" class="members-view">
+          <div class="members-header">
+            <h3>Daftar Anggota ({{ project.members?.length || 0 }})</h3>
+            <div>
+              <button class="btn btn-secondary" @click="showInviteModal = true">
+                <font-awesome-icon icon="user-plus" size="sm" />
+                Undang Anggota
+              </button>
+            </div>
+          </div>
+
+          <div class="members-list">
+            <div v-if="!project.members || project.members.length === 0" class="empty-members">
+              <p>Belum ada anggota di proyek ini.</p>
+            </div>
+
+            <div v-else>
+              <div v-for="member in project.members" :key="member.id" class="member-item">
+                <div class="member-info">
+                  <div class="member-avatar">
+                    <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
+                    <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
+                  </div>
+                  <div class="member-meta">
+                    <div class="member-name">{{ member.user_name }}</div>
+                    <div class="member-email">{{ member.user_email }}</div>
+                  </div>
+                </div>
+                <div class="member-actions">
+                  <button
+                    class="btn btn-secondary"
+                    :disabled="member.id === authStore.user?.id"
+                    @click="removeMember(member)"
+                    title="Hapus anggota dari proyek"
+                  >
+                    <font-awesome-icon icon="user-slash" size="sm" />
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activities View -->
+        <div v-if="activeView === 'activities'" class="activities-view">
+          <div class="activities-header">
+            <h3>Aktivitas Proyek</h3>
+            <button class="btn btn-secondary" @click="loadActivities" :disabled="loadingActivities">
+              <font-awesome-icon icon="refresh" size="sm" />
+              Refresh
+            </button>
+          </div>
+
+          <div class="activities-content">
+            <div v-if="loadingActivities" class="activities-loading">
+              <div class="loading-spinner small"></div>
+              <p>Memuat aktivitas...</p>
+            </div>
+
+            <div v-else-if="!activities || activities.length === 0" class="empty-activities">
+              <font-awesome-icon icon="clock" size="2x" class="empty-icon" />
+              <p>Belum ada aktivitas di proyek ini.</p>
+            </div>
+
+            <div v-else class="activities-list">
+              <div v-for="activity in activities" :key="`${activity.type}-${activity.id}`" class="activity-item">
+                <div class="activity-avatar">
+                  <img v-if="activity.user?.avatar" :src="activity.user.avatar" :alt="activity.user?.name" />
+                  <div v-else class="activity-avatar-fallback">
+                    {{ getMemberInitials(activity.user?.name || 'U') }}
+                  </div>
+                </div>
+                
+                <div class="activity-content">
+                  <div class="activity-header">
+                    <span class="activity-user">{{ activity.user?.name || 'Unknown User' }}</span>
+                    <span class="activity-time">{{ formatActivityTime(activity.created_at) }}</span>
+                  </div>
+                  
+                  <div class="activity-message">
+                    <template v-if="activity.type === 'audit'">
+                      <span class="activity-action">{{ getActivityMessage(activity) }}</span>
+                    </template>
+                    
+                    <template v-else-if="activity.type === 'task_activity'">
+                      <span class="activity-action">{{ activity.action_text }}</span>
+                      <span v-if="activity.task" class="activity-target">di tugas "{{ activity.task.title }}"</span>
+                    </template>
+                    
+                    <template v-else-if="activity.type === 'comment'">
+                      <span class="activity-action">menambahkan komentar</span>
+                      <span v-if="activity.task" class="activity-target">di tugas "{{ activity.task.title }}"</span>
+                      <div class="activity-comment">{{ activity.comment }}</div>
+                    </template>
+                  </div>
+                  
+                  <div class="activity-type-badge" :class="activity.type">
+                    {{ getActivityTypeLabel(activity.type) }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -274,17 +391,17 @@
     <!-- Error State -->
     <div v-else class="error-state">
       <font-awesome-icon icon="exclamation-triangle" size="3x" class="error-icon" />
-      <h3>Project not found</h3>
-      <p>The project you're looking for doesn't exist or you don't have access to it.</p>
+      <h3>Proyek tidak ditemukan</h3>
+      <p>Proyek yang Anda cari tidak ada atau Anda tidak memiliki akses.</p>
       <router-link :to="`/workspaces/${$route.params.workspaceSlug}`" class="btn btn-primary">
-        Back to Workspace
+        Kembali ke Workspace
       </router-link>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { projectService } from '@/api/services/projectService';
 import { taskService } from '@/api/services/taskService';
@@ -301,11 +418,13 @@ const loading = ref(true);
 const project = ref(null);
 const workspace = ref(null);
 const tasks = ref([]);
+const activities = ref([]);
+const loadingActivities = ref(false);
 const taskStatuses = ref([
   { id: 'todo', name: 'To Do' },
-  { id: 'in-progress', name: 'In Progress' },
-  { id: 'review', name: 'Review' },
-  { id: 'done', name: 'Done' }
+  { id: 'in-progress', name: 'Sedang Berlangsung' },
+  { id: 'review', name: 'Tinjau' },
+  { id: 'done', name: 'Selesai' }
 ]);
 const activeView = ref('board');
 const showInviteModal = ref(false);
@@ -319,7 +438,17 @@ const filterPriority = ref('');
 // Load data on mount
 onMounted(async () => {
   await loadProject();
+  if (activeView.value === 'activities') {
+    await loadActivities();
+  }
   loading.value = false;
+});
+
+// Watch for activeView changes to load activities when needed
+watch(activeView, async (newView) => {
+  if (newView === 'activities' && activities.value.length === 0) {
+    await loadActivities();
+  }
 });
 
 // Load project data
@@ -329,29 +458,54 @@ const loadProject = async () => {
     const projectSlug = route.params.projectSlug;
     
     // Load workspace
-    const workspaceResponse = await workspaceService.getWorkspace(workspaceSlug);
+    const workspaceResponse = await workspaceService.get(workspaceSlug);
     workspace.value = workspaceResponse.data.data;
     
     // Load project details
-    const projectResponse = await projectService.getProject(workspaceSlug, projectSlug);
+    const projectResponse = await projectService.get(projectSlug);
     project.value = projectResponse.data.data;
     
     // Load tasks
-    await loadTasks(workspaceSlug, projectSlug);
+    await loadTasks(projectSlug);
     
   } catch (error) {
-    errorToast('Failed to load project');
+    errorToast('Gagal memuat proyek');
     console.error('Error loading project:', error);
   }
 };
 
 // Load tasks
-const loadTasks = async (workspaceSlug, projectSlug) => {
+const loadTasks = async (projectSlug) => {
   try {
-    const response = await taskService.getTasks(workspaceSlug, projectSlug);
-    tasks.value = response.data.data || [];
+    const response = await projectService.get(projectSlug);
+    tasks.value = response.data.data.tasks || [];
   } catch (error) {
     console.error('Error loading tasks:', error);
+  }
+};
+
+const refreshProject = async () => {
+  try {
+    const projectSlug = route.params.projectSlug;
+    const projectResponse = await projectService.get(projectSlug);
+    project.value = projectResponse.data.data;
+  } catch (error) {
+    console.error('Error refreshing project:', error);
+  }
+};
+
+// Load activities
+const loadActivities = async () => {
+  loadingActivities.value = true;
+  try {
+    const projectSlug = route.params.projectSlug;
+    const response = await projectService.getProjectActivities(projectSlug);
+    activities.value = response.data.data || [];
+  } catch (error) {
+    console.error('Error loading activities:', error);
+    errorToast('Gagal memuat aktivitas');
+  } finally {
+    loadingActivities.value = false;
   }
 };
 
@@ -406,11 +560,70 @@ const formatDueDate = (dateString) => {
   const diffTime = date - today;
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
-  if (diffDays === -1) return 'Yesterday';
-  if (diffDays > 0) return `${diffDays} days`;
-  return `${Math.abs(diffDays)} days ago`;
+  if (diffDays === 0) return 'Hari ini';
+  if (diffDays === 1) return 'Besok';
+  if (diffDays === -1) return 'Kemarin';
+  if (diffDays > 0) return `${diffDays} hari lagi`;
+  return `${Math.abs(diffDays)} hari yang lalu`;
+};
+
+// Activity helpers
+const formatActivityTime = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMinutes < 1) return 'Baru saja';
+  if (diffMinutes < 60) return `${diffMinutes} menit yang lalu`;
+  if (diffHours < 24) return `${diffHours} jam yang lalu`;
+  if (diffDays < 7) return `${diffDays} hari yang lalu`;
+  
+  return date.toLocaleDateString('id-ID', { 
+    day: 'numeric', 
+    month: 'short', 
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined 
+  });
+};
+
+const getActivityMessage = (activity) => {
+  if (!activity) return '';
+  
+  if (activity.message) {
+    return activity.message;
+  }
+  
+  const actionMap = {
+    'created': 'membuat',
+    'updated': 'memperbarui', 
+    'deleted': 'menghapus',
+    'restored': 'memulihkan'
+  };
+  
+  const modelMap = {
+    'Project': 'proyek',
+    'Task': 'tugas',
+    'Comment': 'komentar',
+    'ProjectUser': 'anggota proyek'
+  };
+  
+  const action = actionMap[activity.action] || activity.action;
+  const model = modelMap[activity.model_type] || activity.model_type;
+  
+  return `${action} ${model}`;
+};
+
+const getActivityTypeLabel = (type) => {
+  const typeMap = {
+    'audit': 'Audit',
+    'task_activity': 'Tugas',
+    'comment': 'Komentar'
+  };
+  
+  return typeMap[type] || type;
 };
 
 // Actions
@@ -422,6 +635,23 @@ const openTaskDetail = (task) => {
 const toggleTaskMenu = (taskId) => {
   // Implement task menu logic
   console.log('Toggle task menu for:', taskId);
+};
+
+// Member actions
+const removeMember = async (member) => {
+  if (!confirm(`Hapus anggota ${member.name} dari proyek?`)) return;
+
+  try {
+    const projectSlug = route.params.projectSlug;
+    await projectService.removeMember(projectSlug, { user_id: member.id });
+    successToast('Anggota berhasil dihapus');
+    // Refresh project data and tasks
+    await refreshProject();
+    await loadTasks(route.params.projectSlug);
+  } catch (error) {
+    console.error('Error removing member:', error);
+    errorToast('Gagal menghapus anggota');
+  }
 };
 </script>
 
@@ -960,6 +1190,269 @@ const toggleTaskMenu = (taskId) => {
   font-size: 14px;
   color: var(--color-muted);
   margin: 0;
+}
+
+/* Members View */
+.members-view {
+  min-height: 400px;
+}
+
+.members-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.members-list {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.member-item:last-child {
+  border-bottom: none;
+}
+
+.member-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.member-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--color-background);
+}
+
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.member-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  background: var(--color-primary-500);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.member-meta .member-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.member-meta .member-email {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.member-actions .btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Activities View */
+.activities-view {
+  min-height: 400px;
+}
+
+.activities-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.activities-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.activities-content {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 300px;
+}
+
+.activities-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.loading-spinner.small {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border);
+  border-top: 2px solid var(--color-primary-500);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+.empty-activities {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.empty-icon {
+  margin-bottom: 16px;
+}
+
+.activities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.activity-item:hover {
+  border-color: var(--color-primary-200);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.activity-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--color-background);
+  flex-shrink: 0;
+}
+
+.activity-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.activity-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  background: var(--color-primary-500);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.activity-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.activity-user {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.activity-time {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.activity-message {
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.activity-action {
+  font-weight: 500;
+}
+
+.activity-target {
+  color: var(--color-primary-600);
+  font-weight: 500;
+}
+
+.activity-comment {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.activity-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.activity-type-badge.audit {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.activity-type-badge.task_activity {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.activity-type-badge.comment {
+  background: #e8f5e8;
+  color: #2e7d32;
 }
 
 /* Error State */
