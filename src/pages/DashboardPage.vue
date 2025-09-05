@@ -166,6 +166,11 @@
                         <font-awesome-icon icon="paperclip" />
                         <span>{{ task.attachments_count }}</span>
                       </div>
+                      <!-- compact point badge -->
+                      <div v-if="task.point !== null && task.point !== undefined" class="task-stat task-point-badge" :title="`Point: ${task.point}`">
+                        <font-awesome-icon icon="star" />
+                        <span>{{ task.point }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -180,86 +185,169 @@
           </div>
         </div>
 
-        <!-- List View -->
+        <!-- List View as table with server-side features -->
         <div v-else-if="currentView === 'list'" class="list-view">
-          <div class="list-header">
-            <div class="list-header-row">
-              <div class="column-name">Nama Tugas</div>
-              <div class="column-status">Status</div>
-              <div class="column-assignee">Assignee</div>
-              <div class="column-priority">Prioritas</div>
-              <div class="column-due-date">Deadline</div>
-              <div class="column-project">Proyek</div>
-              <div class="column-actions"></div>
+          <!-- Table Controls -->
+          <div class="table-controls">
+            <div class="table-controls-left">
+              <div class="per-page-selector">
+                <label>Tampilkan</label>
+                <select v-model="listParams.per_page" @change="loadListTasks" class="per-page-select">
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+                <span>entri</span>
+              </div>
+            </div>
+            <div class="table-controls-right">
+              <div class="search-box">
+                <div class="search-input-wrapper">
+                  <font-awesome-icon icon="search" class="search-icon" />
+                  <input 
+                    v-model="listParams.search" 
+                    @input="debounceSearch"
+                    type="text" 
+                    placeholder="Cari tugas..." 
+                    class="search-input"
+                  />
+                  <button 
+                    v-if="listParams.search" 
+                    @click="clearSearch" 
+                    class="clear-search-btn"
+                  >
+                    <font-awesome-icon icon="times" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <div class="list-content">
-            <div 
-              v-for="task in allTasks" 
-              :key="task.id"
-              class="list-row"
-              @click="openTaskDetail(task)"
-            >
-              <div class="column-name">
-                <div class="task-priority-indicator" :class="`priority-${slugify(task.priority_raw?.name)}`"></div>
-                <div class="task-info">
-                  <span class="task-title">{{ task.title }}</span>
-                  <span v-if="task.description" class="task-description">{{ task.description }}</span>
-                </div>
-              </div>
-              
-              <div class="column-status">
-                <div class="status-badge" :style="{ backgroundColor: `${task.status_raw?.color}` }">
-                  {{ task.status_raw?.name }}
-                </div>
-              </div>
-              
-              <div class="column-assignee">
-                <div class="assignee-list">
-                  <div 
-                    v-for="assignee in task.assignees?.slice(0, 2)" 
-                    :key="assignee.id"
-                    class="assignee-avatar small"
-                    :title="assignee.name"
-                  >
-                    <img v-if="assignee.avatar" :src="assignee.avatar" :alt="assignee.name" />
-                    <div v-else class="assignee-avatar-fallback">
-                      {{ getMemberInitials(assignee.name) }}
+
+          <!-- Table -->
+          <div class="table-wrapper">
+            <table class="tasks-table">
+              <thead>
+                <tr>
+                  <th class="th-name">Nama Tugas</th>
+                  <th class="th-status">Status</th>
+                  <th class="th-assignee">Assignee</th>
+                  <th class="th-priority">Prioritas</th>
+                  <th class="th-due">Deadline</th>
+                  <th class="th-project">Proyek</th>
+                  <th class="th-actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="listLoading" class="loading-row">
+                  <td colspan="7" class="text-center">
+                    <div class="table-loading">
+                      <div class="loading-spinner small"></div>
+                      <span>Memuat data...</span>
                     </div>
-                  </div>
-                  <span v-if="task.assignees?.length > 2" class="assignee-count">
-                    +{{ task.assignees.length - 2 }}
-                  </span>
-                </div>
-              </div>
+                  </td>
+                </tr>
+                <tr v-else-if="listTasks.length === 0" class="empty-row">
+                  <td colspan="7" class="text-center">
+                    <div class="table-empty">
+                      <font-awesome-icon icon="inbox" size="2x" />
+                      <p>{{ listParams.search ? 'Tidak ada tugas yang ditemukan' : 'Belum ada tugas' }}</p>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-else v-for="task in listTasks" :key="task.id" class="table-row" @click="openTaskDetail(task)">
+                  <td class="td-name">
+                    <div class="task-row-name">
+                      <div class="task-info">
+                        <div class="task-title">{{ task.title }}</div>
+                        <div v-if="task.description" class="task-description">{{ task.description }}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="td-status">
+                    <div class="status-badge" :style="{ backgroundColor: task.status_raw?.color }">{{ task.status_raw?.name }}</div>
+                  </td>
+
+                  <td class="td-assignee">
+                    <div class="assignee-list">
+                      <div v-for="assignee in task.assignees?.slice(0, 3)" :key="assignee.id" class="assignee-avatar small" :title="assignee.name">
+                        <img v-if="assignee.avatar" :src="assignee.avatar" :alt="assignee.name" />
+                        <div v-else class="assignee-avatar-fallback">{{ getMemberInitials(assignee.name) }}</div>
+                      </div>
+                      <span v-if="task.assignees?.length > 3" class="assignee-count">+{{ task.assignees.length - 3 }}</span>
+                    </div>
+                  </td>
+
+                  <td class="td-priority">
+                    <div class="priority-badge" :class="`priority-${slugify(task.priority_raw?.name)}`">
+                      <font-awesome-icon :icon="getPriorityIcon(task.priority_raw?.name)" />
+                      {{ getPriorityName(task.priority_raw?.name) }}
+                      <span v-if="task.point !== null && task.point !== undefined" class="list-point-badge" :title="`Point: ${task.point}`">{{ task.point }}</span>
+                    </div>
+                  </td>
+
+                  <td class="td-due">
+                    <div v-if="task.due_date" :class="{ overdue: isOverdue(task.due_date) }">{{ formatDate(task.due_date) }}</div>
+                    <div v-else class="no-due-date">—</div>
+                  </td>
+
+                  <td class="td-project">
+                    <div class="project-info">
+                      <!-- <div class="project-color-dot" :style="{ backgroundColor: task.project?.color || '#17a2b8' }"></div> -->
+                      <span>{{ task.project?.name }}</span>
+                    </div>
+                  </td>
+
+                  <td class="td-actions">
+                    <button class="btn-icon small" @click.stop="toggleTaskMenu(task.id)">
+                      <font-awesome-icon icon="ellipsis-h" />
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="table-pagination" v-if="!listLoading">
+            <div class="pagination-info">
+              <span>
+                Menampilkan {{ listMeta.from || 0 }} sampai {{ listMeta.to || 0 }} 
+                dari {{ listMeta.total || 0 }} entri
+                <span v-if="listParams.search"> (difilter dari total entri)</span>
+              </span>
+            </div>
+            <div class="pagination-controls" v-if="listMeta.last_page > 1">
+              <button 
+                :disabled="listMeta.current_page <= 1" 
+                @click="changePage(listMeta.current_page - 1)"
+                class="pagination-btn"
+              >
+                <font-awesome-icon icon="chevron-left" />
+                Sebelumnya
+              </button>
               
-              <div class="column-priority">
-                <div class="priority-badge" :class="`priority-${slugify(task.priority_raw?.name)}`">
-                  <font-awesome-icon :icon="getPriorityIcon(task.priority_raw?.name)" />
-                  {{ getPriorityName(task.priority_raw?.name) }}
-                </div>
-              </div>
-              
-              <div class="column-due-date">
-                <span v-if="task.due_date" class="due-date" :class="{ overdue: isOverdue(task.due_date) }">
-                  {{ formatDate(task.due_date) }}
-                </span>
-                <span v-else class="no-due-date">—</span>
-              </div>
-              
-              <div class="column-project">
-                <div class="project-info">
-                  <div class="project-color-dot" :style="{ backgroundColor: '#17a2b8' }"></div>
-                  <span>{{ task.project?.name }}</span>
-                </div>
-              </div>
-              
-              <div class="column-actions">
-                <button class="btn-icon small" @click.stop="toggleTaskMenu(task.id)">
-                  <font-awesome-icon icon="ellipsis-h" />
+              <div class="pagination-pages">
+                <button 
+                  v-for="page in visiblePages" 
+                  :key="page"
+                  :class="['pagination-page', { active: page === listMeta.current_page, disabled: page === '...' }]"
+                  @click="page !== '...' && changePage(page)"
+                  :disabled="page === '...'"
+                >
+                  {{ page }}
                 </button>
               </div>
+
+              <button 
+                :disabled="listMeta.current_page >= listMeta.last_page" 
+                @click="changePage(listMeta.current_page + 1)"
+                class="pagination-btn"
+              >
+                Berikutnya
+                <font-awesome-icon icon="chevron-right" />
+              </button>
             </div>
           </div>
         </div>
@@ -604,6 +692,28 @@ const selectedTaskFilter = ref('all'); // 'all', 'workspace-{id}', 'project-{id}
 const allTasks = ref([]);
 const taskStatuses = ref([]);
 
+// List view datatable data
+const listTasks = ref([]);
+const listLoading = ref(false);
+const listParams = ref({
+  page: 1,
+  per_page: 10,
+  search: '',
+  sort: 'created_at',
+  order: 'desc'
+});
+const listMeta = ref({
+  current_page: 1,
+  last_page: 1,
+  per_page: 10,
+  total: 0,
+  from: 0,
+  to: 0
+});
+
+// Search debounce
+let searchTimeout = null;
+
 // Load priorities from API and map to taskStatuses shape
 const loadPriorities = async () => {
   try {
@@ -640,6 +750,7 @@ onMounted(async () => {
   await loadRecentActivities();
   await loadRecentTasks();
   await loadTasks();
+  await loadListTasks(); // Load list tasks for datatable
   loading.value = false;
 });
 
@@ -727,6 +838,7 @@ const loadRecentTasks = async () => {
     recentTasks.value = items.map(item => ({
       id: item.id || item.uuid || Math.random().toString(36).substr(2, 9),
       title: item.title || item.name || 'Untitled',
+      point: item.point ?? item.points ?? null,
       project: item.project || item.project_data || null,
       updated_at: item.updated_at || item.updatedAt || item.created_at || new Date().toISOString()
     }));
@@ -759,6 +871,7 @@ const loadTasks = async (filterValue = null) => {
       title: item.title || item.name || 'Untitled',
       description: item.description || '',
       due_date: item.due_date || item.dueDate || null,
+      point: item.point ?? item.points ?? null,
       // priority and status come as nested objects in the API sample
       priority: item.priority ? (item.priority.priority_id || item.priority.id || item.priority.name) : (item.priority_id || null),
       priority_raw: item.priority || null,
@@ -782,12 +895,236 @@ const loadTasks = async (filterValue = null) => {
       updated_at: item.updated_at || item.updatedAt || null,
     }));
 
-    console.log('Tasks loaded:', allTasks.value);
+    // console.log('Tasks loaded:', allTasks.value);
   } catch (error) {
     console.error('Error loading tasks:', error);
     errorToast('Gagal memuat tugas');
     allTasks.value = [];
   }
+};
+
+// Load tasks for list view with server-side datatable features
+const loadListTasks = async () => {
+  try {
+    listLoading.value = true;
+    const params = {
+      limit: listParams.value.per_page,
+      page: listParams.value.page,
+      search: listParams.value.search || undefined,
+      sort: listParams.value.sort,
+      order: listParams.value.order
+    };
+
+    // Remove empty params
+    Object.keys(params).forEach(key => {
+      if (params[key] === undefined || params[key] === '') {
+        delete params[key];
+      }
+    });
+
+    console.log('Loading list tasks with params:', params);
+    const res = await taskService.recent(params);
+    const data = res.data;
+    console.log('API Response:', data);
+
+    // Handle pagination response - check for nested pagination object
+    if (data.data && Array.isArray(data.data) && data.pagination) {
+      // Response with nested pagination object (like your API)
+      listTasks.value = data.data.map(item => ({
+        id: item.id || item.uuid,
+        uuid: item.uuid || null,
+        title: item.title || item.name || 'Untitled',
+        description: item.description || '',
+        due_date: item.due_date || item.dueDate || null,
+        point: item.point ?? item.points ?? null,
+        priority: item.priority ? (item.priority.priority_id || item.priority.id || item.priority.name) : (item.priority_id || null),
+        priority_raw: item.priority || null,
+        status: item.status ? (item.status.status_id || item.status.id || item.status.name) : (item.status_id || null),
+        status_raw: item.status || null,
+        project: item.project || null,
+        workspace_id: item.project?.workspace_id || item.workspace_id || null,
+        assignees: (item.assignees || []).map(a => ({
+          user_id: a.user_id || a.id,
+          id: a.user_id || a.id,
+          name: a.name || a.full_name || null,
+          email: a.email || null,
+          avatar: a.avatar || null,
+          assigned_at: a.assigned_at || a.pivot?.created_at || null,
+        })),
+        comments_count: item.comments_count ?? (item.comments ? item.comments.length : 0) ?? 0,
+        attachments_count: item.attachments_count ?? (item.attachments ? item.attachments.length : 0) ?? 0,
+        created_at: item.created_at || item.createdAt || null,
+        updated_at: item.updated_at || item.updatedAt || null,
+      }));
+
+      // Use nested pagination object
+      listMeta.value = {
+        current_page: data.pagination.current_page || 1,
+        last_page: data.pagination.last_page || 1,
+        per_page: data.pagination.per_page || 10,
+        total: data.pagination.total || 0,
+        from: data.pagination.from || 0,
+        to: data.pagination.to || 0
+      };
+    } else if (data.data && Array.isArray(data.data)) {
+      // Laravel pagination response (top-level pagination)
+      listTasks.value = data.data.map(item => ({
+        id: item.id || item.uuid,
+        uuid: item.uuid || null,
+        title: item.title || item.name || 'Untitled',
+        description: item.description || '',
+        due_date: item.due_date || item.dueDate || null,
+        point: item.point ?? item.points ?? null,
+        priority: item.priority ? (item.priority.priority_id || item.priority.id || item.priority.name) : (item.priority_id || null),
+        priority_raw: item.priority || null,
+        status: item.status ? (item.status.status_id || item.status.id || item.status.name) : (item.status_id || null),
+        status_raw: item.status || null,
+        project: item.project || null,
+        workspace_id: item.project?.workspace_id || item.workspace_id || null,
+        assignees: (item.assignees || []).map(a => ({
+          user_id: a.user_id || a.id,
+          id: a.user_id || a.id,
+          name: a.name || a.full_name || null,
+          email: a.email || null,
+          avatar: a.avatar || null,
+          assigned_at: a.assigned_at || a.pivot?.created_at || null,
+        })),
+        comments_count: item.comments_count ?? (item.comments ? item.comments.length : 0) ?? 0,
+        attachments_count: item.attachments_count ?? (item.attachments ? item.attachments.length : 0) ?? 0,
+        created_at: item.created_at || item.createdAt || null,
+        updated_at: item.updated_at || item.updatedAt || null,
+      }));
+
+      // Update pagination meta
+      listMeta.value = {
+        current_page: data.current_page || 1,
+        last_page: data.last_page || 1,
+        per_page: data.per_page || 10,
+        total: data.total || 0,
+        from: data.from || 0,
+        to: data.to || 0
+      };
+    } else {
+      // Simple array response
+      listTasks.value = (data || []).map(item => ({
+        id: item.id || item.uuid,
+        uuid: item.uuid || null,
+        title: item.title || item.name || 'Untitled',
+        description: item.description || '',
+        due_date: item.due_date || item.dueDate || null,
+        point: item.point ?? item.points ?? null,
+        priority: item.priority ? (item.priority.priority_id || item.priority.id || item.priority.name) : (item.priority_id || null),
+        priority_raw: item.priority || null,
+        status: item.status ? (item.status.status_id || item.status.id || item.status.name) : (item.status_id || null),
+        status_raw: item.status || null,
+        project: item.project || null,
+        workspace_id: item.project?.workspace_id || item.workspace_id || null,
+        assignees: (item.assignees || []).map(a => ({
+          user_id: a.user_id || a.id,
+          id: a.user_id || a.id,
+          name: a.name || a.full_name || null,
+          email: a.email || null,
+          avatar: a.avatar || null,
+          assigned_at: a.assigned_at || a.pivot?.created_at || null,
+        })),
+        comments_count: item.comments_count ?? (item.comments ? item.comments.length : 0) ?? 0,
+        attachments_count: item.attachments_count ?? (item.attachments ? item.attachments.length : 0) ?? 0,
+        created_at: item.created_at || item.createdAt || null,
+        updated_at: item.updated_at || item.updatedAt || null,
+      }));
+
+      // Fake pagination for simple response
+      listMeta.value = {
+        current_page: 1,
+        last_page: Math.max(1, Math.ceil(listTasks.value.length / listParams.value.per_page)),
+        per_page: listParams.value.per_page,
+        total: listTasks.value.length,
+        from: listTasks.value.length > 0 ? 1 : 0,
+        to: listTasks.value.length
+      };
+    }
+
+    console.log('List tasks loaded:', listTasks.value.length, 'items');
+    console.log('List meta:', listMeta.value);
+  } catch (error) {
+    console.error('Error loading list tasks:', error);
+    errorToast('Gagal memuat daftar tugas');
+    listTasks.value = [];
+    listMeta.value = {
+      current_page: 1,
+      last_page: 1,
+      per_page: 10,
+      total: 0,
+      from: 0,
+      to: 0
+    };
+  } finally {
+    listLoading.value = false;
+  }
+};
+
+// Pagination functions
+const changePage = (page) => {
+  if (page >= 1 && page <= listMeta.value.last_page) {
+    listParams.value.page = page;
+    loadListTasks();
+  }
+};
+
+const visiblePages = computed(() => {
+  const current = listMeta.value.current_page;
+  const last = listMeta.value.last_page;
+  const pages = [];
+
+  if (last <= 7) {
+    // Show all pages if 7 or fewer
+    for (let i = 1; i <= last; i++) {
+      pages.push(i);
+    }
+  } else {
+    // Show first page
+    pages.push(1);
+
+    if (current > 4) {
+      pages.push('...');
+    }
+
+    // Show pages around current
+    const start = Math.max(2, current - 1);
+    const end = Math.min(last - 1, current + 1);
+
+    for (let i = start; i <= end; i++) {
+      if (!pages.includes(i)) {
+        pages.push(i);
+      }
+    }
+
+    if (current < last - 3) {
+      pages.push('...');
+    }
+
+    // Show last page
+    if (!pages.includes(last)) {
+      pages.push(last);
+    }
+  }
+
+  return pages;
+});
+
+// Search functions
+const debounceSearch = () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    listParams.value.page = 1; // Reset to first page when searching
+    loadListTasks();
+  }, 500);
+};
+
+const clearSearch = () => {
+  listParams.value.search = '';
+  listParams.value.page = 1;
+  loadListTasks();
 };
 
 // Task management functions
@@ -2511,6 +2848,44 @@ const toggleProjectMenu = (projectId) => {
     width: 32px;
     height: 28px;
   }
+
+  /* Datatable responsive */
+  .table-controls {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .table-controls-left,
+  .table-controls-right {
+    justify-content: center;
+  }
+
+  .search-input {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .table-pagination {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .pagination-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pagination-pages {
+    margin: 0 8px;
+  }
+
+  .tasks-table th,
+  .tasks-table td {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -2545,5 +2920,344 @@ html.dark .workspace-role {
 
 html.dark .progress-bar {
   background: var(--color-background-soft);
+}
+
+/* Tasks Table (List view) styling */
+.tasks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.tasks-table thead {
+  background: var(--bg-1);
+}
+
+.tasks-table th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 600;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.tasks-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tasks-table tbody tr:hover {
+  background: var(--bg-1);
+}
+
+.tasks-table .td-actions {
+  width: 40px;
+  text-align: right;
+}
+
+.tasks-table .assignee-avatar.small {
+  width: 24px;
+  height: 24px;
+}
+
+.tasks-table .priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+/* Compact point badges */
+.task-point-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(90deg, rgba(255,215,64,0.18), rgba(255,193,7,0.08));
+  color: var(--text-color);
+  padding: 4px 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+}
+
+.task-point-badge font-awesome-icon {
+  color: #ffcc00;
+  font-size: 12px;
+}
+
+.list-point-badge {
+  display: inline-block;
+  margin-left: 8px;
+  background: linear-gradient(90deg, rgba(255,215,64,0.14), rgba(255,193,7,0.06));
+  color: var(--text-color);
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: middle;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+
+/* Dark mode: make point badges highly visible */
+html.dark .task-point-badge {
+  background: linear-gradient(90deg, rgba(255,193,7,0.95), rgba(255,160,0,0.9));
+  color: #111;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+}
+
+html.dark .list-point-badge {
+  background: rgba(255,193,7,0.95);
+  color: #111;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* Table Controls */
+.table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-radius: 8px 8px 0 0;
+}
+
+.table-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.per-page-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.per-page-select {
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  color: var(--text-color);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.per-page-select:focus {
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 2px rgba(23, 162, 184, 0.1);
+}
+
+.search-box {
+  position: relative;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px 8px 36px;
+  font-size: 14px;
+  color: var(--text-color);
+  width: 250px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(23, 162, 184, 0.1);
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--color-muted);
+  font-size: 14px;
+  z-index: 1;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+}
+
+.clear-search-btn:hover {
+  color: var(--text-color);
+  background: var(--bg-1);
+}
+
+/* Table Wrapper */
+.table-wrapper {
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  overflow-x: auto;
+}
+
+/* Table Loading and Empty States */
+.loading-row,
+.empty-row {
+  background: var(--bg-0);
+}
+
+.table-loading,
+.table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--color-muted);
+}
+
+.table-loading {
+  gap: 12px;
+}
+
+.table-empty {
+  gap: 16px;
+}
+
+.table-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.loading-spinner.small {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+  margin: 0;
+}
+
+/* Pagination */
+.table-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+
+.pagination-info {
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--bg-1);
+  border-color: var(--color-primary-500);
+}
+
+.pagination-btn:disabled {
+  color: var(--color-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 12px;
+}
+
+.pagination-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.pagination-page:hover:not(.disabled):not(.active) {
+  background: var(--bg-1);
+  border-color: var(--color-primary-500);
+}
+
+.pagination-page.active {
+  background: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  color: white;
+}
+
+.pagination-page.disabled {
+  cursor: default;
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+}
+
+@media (max-width: 768px) {
+  .tasks-table th,
+  .tasks-table td {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
 }
 </style>
