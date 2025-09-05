@@ -88,7 +88,7 @@
 
         <!-- Kanban View -->
         <div v-else-if="currentView === 'kanban'" class="kanban-view">
-          <div class="kanban-board">
+          <div :class="['kanban-board', boardColumnsClass]">
             <div 
               v-for="status in taskStatuses" 
               :key="status.id"
@@ -113,10 +113,10 @@
                   @click="openTaskDetail(task)"
                 >
                   <div class="task-header">
-                    <div class="task-priority" :class="`priority-${task.priority}`">
+                    <div class="task-priority" :class="`priority-${slugify(task.priority_raw?.name)}`">
                       <font-awesome-icon 
-                        :icon="getPriorityIcon(task.priority)" 
-                        :class="`priority-${task.priority}`"
+                        :icon="getPriorityIcon(task.priority_raw?.name)" 
+                        :class="`priority-${slugify(task.priority_raw?.name)}`"
                       />
                     </div>
                     <button class="btn-icon small" @click.stop="toggleTaskMenu(task.id)">
@@ -202,7 +202,7 @@
               @click="openTaskDetail(task)"
             >
               <div class="column-name">
-                <div class="task-priority-indicator" :class="`priority-${task.priority}`"></div>
+                <div class="task-priority-indicator" :class="`priority-${slugify(task.priority_raw?.name)}`"></div>
                 <div class="task-info">
                   <span class="task-title">{{ task.title }}</span>
                   <span v-if="task.description" class="task-description">{{ task.description }}</span>
@@ -210,8 +210,8 @@
               </div>
               
               <div class="column-status">
-                <div class="status-badge" :style="{ backgroundColor: getStatusColor(task.status) }">
-                  {{ getStatusName(task.status) }}
+                <div class="status-badge" :style="{ backgroundColor: `${task.status_raw?.color}` }">
+                  {{ task.status_raw?.name }}
                 </div>
               </div>
               
@@ -235,9 +235,9 @@
               </div>
               
               <div class="column-priority">
-                <div class="priority-badge" :class="`priority-${task.priority}`">
-                  <font-awesome-icon :icon="getPriorityIcon(task.priority)" />
-                  {{ getPriorityName(task.priority) }}
+                <div class="priority-badge" :class="`priority-${slugify(task.priority_raw?.name)}`">
+                  <font-awesome-icon :icon="getPriorityIcon(task.priority_raw?.name)" />
+                  {{ getPriorityName(task.priority_raw?.name) }}
                 </div>
               </div>
               
@@ -250,7 +250,7 @@
               
               <div class="column-project">
                 <div class="project-info">
-                  <div class="project-color-dot" :style="{ backgroundColor: task.project?.color || '#17a2b8' }"></div>
+                  <div class="project-color-dot" :style="{ backgroundColor: '#17a2b8' }"></div>
                   <span>{{ task.project?.name }}</span>
                 </div>
               </div>
@@ -427,7 +427,7 @@
                       <p class="project-description">{{ project.description || 'Tidak ada deskripsi' }}</p>
                       <div class="project-workspace-badge">
                         <font-awesome-icon icon="briefcase" />
-                        {{ getWorkspaceName(project.workspace_id) }}
+                        {{ getWorkspaceName(project.workspace?.id) }}
                       </div>
                     </div>
                   </div>
@@ -464,7 +464,7 @@
                       </div>
                       <div class="stat-content">
                         <span class="stat-number">{{ project.tasks_count || 0 }}</span>
-                        <span class="stat-label">Total Tasks</span>
+                        <span class="stat-label">Total Tugas</span>
                       </div>
                     </div>
                     <div class="stat-item">
@@ -473,7 +473,7 @@
                       </div>
                       <div class="stat-content">
                         <span class="stat-number">{{ project.completed_tasks_count || 0 }}</span>
-                        <span class="stat-label">Completed</span>
+                        <span class="stat-label">Selesai</span>
                       </div>
                     </div>
                   </div>
@@ -489,11 +489,11 @@
                         :key="member.id"
                         class="member-avatar" 
                         :style="{ zIndex: 3 - index }"
-                        :title="member.name"
+                        :title="member.user_name"
                       >
-                        <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
+                        <img v-if="member.avatar" :src="member.avatar" :alt="member.user_name" />
                         <div v-else class="member-avatar-fallback">
-                          {{ getMemberInitials(member.name) }}
+                          {{ getMemberInitials(member.user_name) }}
                         </div>
                       </div>
                       <div v-if="project.members?.length > 3" class="member-count-more">
@@ -572,7 +572,10 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { workspaceService } from '@/api/services/workspaceService';
 import { projectService } from '@/api/services/projectService';
+import { priorityService } from '@/api/services/priorityService';
+import { taskService } from '@/api/services/taskService';
 import { useAuthStore } from '@/stores/auth';
+import { auditLogsService } from '@/api/services/auditLogsService';
 import { errorToast, successToast } from '@/utils/toast';
 
 const router = useRouter();
@@ -599,17 +602,41 @@ const selectedTaskFilter = ref('all'); // 'all', 'workspace-{id}', 'project-{id}
 
 // Task data
 const allTasks = ref([]);
-const taskStatuses = ref([
-  { id: 'todo', name: 'To Do', color: '#6c757d' },
-  { id: 'in_progress', name: 'In Progress', color: '#17a2b8' },
-  { id: 'review', name: 'In Review', color: '#ffc107' },
-  { id: 'done', name: 'Done', color: '#28a745' }
-]);
+const taskStatuses = ref([]);
+
+// Load priorities from API and map to taskStatuses shape
+const loadPriorities = async () => {
+  try {
+    const res = await priorityService.list();
+    const priorities = res.data.data || res.data || [];
+    // Map to expected local shape
+    taskStatuses.value = priorities.map(p => ({ id: p.code || p.id || p.name, name: p.name, color: p.color || '#6c757d' }));
+    // Fallback default if empty
+    if (taskStatuses.value.length === 0) {
+      taskStatuses.value = [
+        { id: 'todo', name: 'To Do', color: '#6c757d' },
+        { id: 'in_progress', name: 'In Progress', color: '#17a2b8' },
+        { id: 'review', name: 'In Review', color: '#ffc107' },
+        { id: 'done', name: 'Done', color: '#28a745' }
+      ];
+    }
+  } catch (error) {
+    console.error('Error loading priorities:', error);
+    // keep fallback defaults
+    taskStatuses.value = [
+      { id: 'todo', name: 'To Do', color: '#6c757d' },
+      { id: 'in_progress', name: 'In Progress', color: '#17a2b8' },
+      { id: 'review', name: 'In Review', color: '#ffc107' },
+      { id: 'done', name: 'Done', color: '#28A745' }
+    ];
+  }
+};
 
 // Load data on mount
 onMounted(async () => {
   await loadWorkspaces();
   await loadAllProjects(); // Load all projects instead of workspace-specific
+  await loadPriorities();
   await loadRecentActivities();
   await loadRecentTasks();
   await loadTasks();
@@ -644,66 +671,9 @@ const loadWorkspaces = async () => {
 // Load all projects from all workspaces
 const loadAllProjects = async () => {
   try {
-    // Mock data for all projects with workspace information
-    const mockAllProjects = [
-      {
-        id: 1,
-        name: 'API Integration System',
-        description: 'Sistem integrasi API untuk menghubungkan berbagai aplikasi internal.',
-        color: '#17a2b8',
-        workspace_id: 1,
-        tasks_count: 8,
-        completed_tasks_count: 3,
-        members: [
-          { id: 1, name: 'John Doe', avatar: null },
-          { id: 2, name: 'Jane Smith', avatar: null },
-          { id: 3, name: 'Mike Johnson', avatar: null }
-        ],
-        updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 2,
-        name: 'Mobile App ProMan',
-        description: 'Aplikasi mobile untuk project management yang user-friendly.',
-        color: '#28a745',
-        workspace_id: 2,
-        tasks_count: 12,
-        completed_tasks_count: 8,
-        members: [
-          { id: 4, name: 'Sarah Wilson', avatar: null },
-          { id: 5, name: 'Alex Brown', avatar: null }
-        ],
-        updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 3,
-        name: 'Website Official Universitas',
-        description: 'Website resmi universitas dengan CMS yang modern.',
-        color: '#ffc107',
-        workspace_id: 3,
-        tasks_count: 15,
-        completed_tasks_count: 15,
-        members: [
-          { id: 6, name: 'Lisa Davis', avatar: null }
-        ],
-        updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 4,
-        name: 'Audit Sistem Keamanan',
-        description: 'Audit menyeluruh terhadap sistem keamanan aplikasi dan infrastruktur.',
-        color: '#dc3545',
-        workspace_id: 1,
-        tasks_count: 0,
-        completed_tasks_count: 0,
-        members: [
-          { id: 1, name: 'John Doe', avatar: null }
-        ],
-        updated_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    ];
-    
-    allProjects.value = mockAllProjects;
+    const response = await projectService.list();
+    // Expecting API to return { data: [...] } pattern
+    allProjects.value = response.data.data || response.data || [];
   } catch (error) {
     errorToast('Gagal memuat proyek');
     console.error('Error loading all projects:', error);
@@ -732,204 +702,91 @@ const loadProjects = async (workspaceSlug) => {
 // Load recent activities
 const loadRecentActivities = async () => {
   try {
-    // This would be a separate API call for activities
-    // For now, using mock data
-    recentActivities.value = [
-      {
-        id: 1,
-        user: { name: 'John Doe', avatar: null },
-        description: 'membuat task baru "Setup Database"',
-        created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString()
-      },
-      {
-        id: 2,
-        user: { name: 'Jane Smith', avatar: null },
-        description: 'menyelesaikan task "Design UI"',
-        created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 3,
-        user: { name: 'Mike Johnson', avatar: null },
-        description: 'menambahkan komentar di "API Integration"',
-        created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 4,
-        user: { name: 'Sarah Wilson', avatar: null },
-        description: 'mengupload dokumen "Requirements.pdf"',
-        created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 5,
-        user: { name: 'Alex Brown', avatar: null },
-        description: 'memindahkan task "Testing" ke Done',
-        created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 6,
-        user: { name: 'Lisa Davis', avatar: null },
-        description: 'membuat proyek baru "Mobile App"',
-        created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
-      }
-    ];
+    const res = await auditLogsService.list({ limit: 6 });
+    const items = res.data.data || res.data || [];
+    // Map audit log entries to recentActivities shape
+    recentActivities.value = items.map(item => ({
+      id: item.id || item.uuid || Math.random().toString(36).substr(2, 9),
+      user: { name: item.user.name || item.user?.name || (item.user_id ? `User ${item.user_id}` : 'User'), 
+      avatar: item.user?.avatar || null },
+      description: item.message || `${item.action} ${item.model_type || ''}`,
+      created_at: item.created_at || item.createdAt || item.timestamp || new Date().toISOString(),
+    }));
   } catch (error) {
     console.error('Error loading activities:', error);
+    // fallback to empty
+    recentActivities.value = [];
   }
 };
 
 // Load recent tasks (shows on the right column above activities)
 const loadRecentTasks = async () => {
   try {
-    // Ideally this comes from an API like taskService.recent()
-    // For now provide mock data showing project.workspace usage
-    recentTasks.value = [
-      {
-        id: 101,
-        title: 'Setup Database',
-        project: { id: 11, name: 'API Integration System', slug: 'api-integration', workspace: { id: 1, name: 'Academic Affairs Workspace', slug: 'academic-affairs' } },
-        updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString()
-      },
-      {
-        id: 102,
-        title: 'Design UI',
-        project: { id: 12, name: 'Mobile App ProMan', slug: 'mobile-app', workspace_name: 'Development Team Workspace', workspace: { id: 2, name: 'Development Team Workspace', slug: 'development-team' } },
-        updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 103,
-        title: 'Write Requirements',
-        project: { id: 13, name: 'Website Official Universitas', slug: 'website-official', workspace: { id: 3, name: 'Marketing Team Workspace', slug: 'marketing' } },
-        updated_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
-      }
-    ];
+    const res = await taskService.recent({ limit: 5 });
+    const items = res.data.data || res.data || [];
+    recentTasks.value = items.map(item => ({
+      id: item.id || item.uuid || Math.random().toString(36).substr(2, 9),
+      title: item.title || item.name || 'Untitled',
+      project: item.project || item.project_data || null,
+      updated_at: item.updated_at || item.updatedAt || item.created_at || new Date().toISOString()
+    }));
   } catch (error) {
     console.error('Error loading recent tasks:', error);
+    recentTasks.value = [];
   }
 };
 
-// Load tasks for kanban and list view
+// Load tasks for kanban and list view (fetch from API)
 const loadTasks = async (filterValue = null) => {
   try {
-    // This would be an API call to taskService.list()
-    // For now, using mock data based on filter
     const filter = filterValue || selectedTaskFilter.value;
-    
-    // Mock data for all tasks
-    const mockTasks = [
-      {
-        id: 1,
-        title: 'Setup Database Schema',
-        description: 'Create database tables and relationships for the project management system',
-        status: 'todo',
-        priority: 'high',
-        due_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-        project: { id: 1, name: 'API Integration System', color: '#17a2b8', workspace_id: 1 },
-        workspace_id: 1,
-        assignees: [
-          { id: 1, name: 'John Doe', avatar: null },
-          { id: 2, name: 'Jane Smith', avatar: null }
-        ],
-        comments_count: 3,
-        attachments_count: 1,
-        created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 2,
-        title: 'Design User Interface',
-        description: 'Create wireframes and mockups for the dashboard',
-        status: 'in_progress',
-        priority: 'medium',
-        due_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-        project: { id: 2, name: 'Mobile App ProMan', color: '#28a745', workspace_id: 2 },
-        workspace_id: 2,
-        assignees: [
-          { id: 3, name: 'Mike Johnson', avatar: null }
-        ],
-        comments_count: 7,
-        attachments_count: 2,
-        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 3,
-        title: 'API Documentation',
-        description: 'Write comprehensive API documentation using Swagger',
-        status: 'review',
-        priority: 'low',
-        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        project: { id: 1, name: 'API Integration System', color: '#17a2b8', workspace_id: 1 },
-        workspace_id: 1,
-        assignees: [
-          { id: 4, name: 'Sarah Wilson', avatar: null },
-          { id: 5, name: 'Alex Brown', avatar: null }
-        ],
-        comments_count: 2,
-        attachments_count: 0,
-        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 4,
-        title: 'Unit Testing',
-        description: 'Write unit tests for core functionality',
-        status: 'done',
-        priority: 'medium',
-        due_date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        project: { id: 3, name: 'Website Official', color: '#ffc107', workspace_id: 3 },
-        workspace_id: 3,
-        assignees: [
-          { id: 6, name: 'Lisa Davis', avatar: null }
-        ],
-        comments_count: 5,
-        attachments_count: 3,
-        created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 5,
-        title: 'Performance Optimization',
-        description: 'Optimize database queries and improve response times',
-        status: 'todo',
-        priority: 'high',
-        due_date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
-        project: { id: 1, name: 'API Integration System', color: '#17a2b8', workspace_id: 1 },
-        workspace_id: 1,
-        assignees: [
-          { id: 1, name: 'John Doe', avatar: null },
-          { id: 3, name: 'Mike Johnson', avatar: null },
-          { id: 4, name: 'Sarah Wilson', avatar: null }
-        ],
-        comments_count: 1,
-        attachments_count: 0,
-        created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 6,
-        title: 'User Authentication',
-        description: 'Implement JWT authentication system',
-        status: 'in_progress',
-        priority: 'high',
-        due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        project: { id: 2, name: 'Mobile App ProMan', color: '#28a745', workspace_id: 2 },
-        workspace_id: 2,
-        assignees: [
-          { id: 2, name: 'Jane Smith', avatar: null }
-        ],
-        comments_count: 4,
-        attachments_count: 1,
-        created_at: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString()
-      }
-    ];
+    const params = {};
 
-    // Filter tasks based on selection
     if (filter === 'all') {
-      allTasks.value = mockTasks;
+      // no extra params
     } else if (filter.startsWith('workspace-')) {
-      const workspaceId = parseInt(filter.split('-')[1]);
-      allTasks.value = mockTasks.filter(task => task.workspace_id === workspaceId);
+      params.workspace = parseInt(filter.split('-')[1]);
     } else if (filter.startsWith('project-')) {
-      const projectId = parseInt(filter.split('-')[1]);
-      allTasks.value = mockTasks.filter(task => task.project.id === projectId);
+      params.project = parseInt(filter.split('-')[1]);
     }
+
+    const res = await taskService.list(params);
+    const items = res.data.data || res.data || [];
+
+    allTasks.value = items.map(item => ({
+      id: item.id || item.uuid,
+      uuid: item.uuid || null,
+      title: item.title || item.name || 'Untitled',
+      description: item.description || '',
+      due_date: item.due_date || item.dueDate || null,
+      // priority and status come as nested objects in the API sample
+      priority: item.priority ? (item.priority.priority_id || item.priority.id || item.priority.name) : (item.priority_id || null),
+      priority_raw: item.priority || null,
+      status: item.status ? (item.status.status_id || item.status.id || item.status.name) : (item.status_id || null),
+      status_raw: item.status || null,
+      // project in API is nested under `project` with project_id
+      project: item.project || null,
+      workspace_id: item.project?.workspace_id || item.workspace_id || null,
+      // assignees in API sample use user_id and assigned_at
+      assignees: (item.assignees || []).map(a => ({
+        user_id: a.user_id || a.id,
+        id: a.user_id || a.id,
+        name: a.name || a.full_name || null,
+        email: a.email || null,
+        avatar: a.avatar || null,
+        assigned_at: a.assigned_at || a.pivot?.created_at || null,
+      })),
+      comments_count: item.comments_count ?? (item.comments ? item.comments.length : 0) ?? 0,
+      attachments_count: item.attachments_count ?? (item.attachments ? item.attachments.length : 0) ?? 0,
+      created_at: item.created_at || item.createdAt || null,
+      updated_at: item.updated_at || item.updatedAt || null,
+    }));
+
+    console.log('Tasks loaded:', allTasks.value);
   } catch (error) {
     console.error('Error loading tasks:', error);
+    errorToast('Gagal memuat tugas');
+    allTasks.value = [];
   }
 };
 
@@ -938,33 +795,42 @@ const getTasksByStatus = (statusId) => {
   return allTasks.value.filter(task => task.status === statusId);
 };
 
-const getStatusColor = (statusId) => {
-  const status = taskStatuses.value.find(s => s.id === statusId);
-  return status?.color || '#6c757d';
-};
-
-const getStatusName = (statusId) => {
-  const status = taskStatuses.value.find(s => s.id === statusId);
-  return status?.name || 'Unknown';
-};
-
 const getPriorityIcon = (priority) => {
   switch (priority) {
-    case 'high': return 'arrow-up';
-    case 'medium': return 'minus';
-    case 'low': return 'arrow-down';
+    case 'High': return 'arrow-up';
+    case 'Medium': return 'minus';
+    case 'Low': return 'arrow-down';
+    case 'Urgent': return 'exclamation';
     default: return 'minus';
   }
 };
 
 const getPriorityName = (priority) => {
   switch (priority) {
-    case 'high': return 'Tinggi';
-    case 'medium': return 'Sedang';
-    case 'low': return 'Rendah';
+    case 'High': return 'Tinggi';
+    case 'Medium': return 'Sedang';
+    case 'Low': return 'Rendah';
+    case 'Urgent': return 'Sangat Mendesak';
     default: return 'Sedang';
   }
 };
+
+// Normalize a string to a slug suitable for CSS classes, e.g. 'High' -> 'high', 'Very High' -> 'very-high'
+const slugify = (value) => {
+  if (!value) return '';
+  return String(value)
+    .toLowerCase()
+    .replace(/\s+/g, '-')        // replace spaces with -
+    .replace(/[^a-z0-9\-]/g, '') // remove invalid chars
+    .replace(/\-+/g, '-')        // collapse dashes
+    .replace(/^-+|-+$/g, '');     // trim dashes
+};
+
+// Compute dynamic class based on number of taskStatuses to allow grid-like columns (e.g. 4 statuses -> columns-4)
+const boardColumnsClass = computed(() => {
+  const n = taskStatuses.value.length || 1;
+  return `columns-${Math.min(n, 12)}`;
+});
 
 const isOverdue = (dueDate) => {
   if (!dueDate) return false;
@@ -1018,21 +884,45 @@ const calculateProgress = (project) => {
   return total > 0 ? Math.round((completed / total) * 100) : 0;
 };
 
+// Robustly parse backend date strings and format relative time in Indonesian
+const parseToDate = (dateString) => {
+  if (!dateString) return null;
+  if (dateString instanceof Date) return dateString;
+  let s = String(dateString).trim();
+  // If format is 'YYYY-MM-DD HH:mm:ss' convert to ISO-ish 'YYYY-MM-DDTHH:mm:ss'
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(s)) {
+    s = s.replace(' ', 'T');
+  }
+  // If timezone missing, Date will treat as local; fallback to Date.parse
+  const d = new Date(s);
+  if (isNaN(d)) return null;
+  return d;
+};
+
 const formatDate = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
+  const date = parseToDate(dateString);
+  if (!date) return '';
   const now = new Date();
-  const diff = now - date;
-  
-  const minutes = Math.floor(diff / (1000 * 60));
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  
-  if (minutes < 60) return `${minutes} menit lalu`;
-  if (hours < 24) return `${hours} jam lalu`;
-  if (days < 7) return `${days} hari lalu`;
-  
-  return date.toLocaleDateString('id-ID');
+  const diffMs = now.getTime() - date.getTime();
+  const absMs = Math.abs(diffMs);
+
+  const minutes = Math.floor(absMs / (1000 * 60));
+  const hours = Math.floor(absMs / (1000 * 60 * 60));
+  const days = Math.floor(absMs / (1000 * 60 * 60 * 24));
+
+  if (diffMs >= 0) {
+    // past
+    if (minutes < 60) return `${minutes} menit lalu`;
+    if (hours < 24) return `${hours} jam lalu`;
+    if (days < 7) return `${days} hari lalu`;
+    return date.toLocaleDateString('id-ID');
+  } else {
+    // future
+    if (minutes < 60) return `dalam ${minutes} menit`;
+    if (hours < 24) return `dalam ${hours} jam`;
+    if (days < 7) return `dalam ${days} hari`;
+    return date.toLocaleDateString('id-ID');
+  }
 };
 
 // Navigation
@@ -1041,7 +931,7 @@ const goToWorkspace = (workspace) => {
 };
 
 const goToProject = (project) => {
-  const workspace = workspaces.value.find(w => w.id === project.workspace_id);
+  const workspace = workspaces.value.find(w => w.id === project.workspace?.id);
   if (workspace) {
     router.push(`/workspaces/${workspace.slug}/projects/${project.slug}`);
   }
@@ -1841,22 +1731,64 @@ const toggleProjectMenu = (projectId) => {
 /* Kanban View */
 .kanban-view {
   overflow-x: auto;
-  padding-bottom: 16px;
+  overflow-y: hidden;
+  padding: 0 8px 16px;
+  max-height: 80vh;
+  position: relative;
+}
+
+.kanban-view::-webkit-scrollbar {
+  height: 8px;
+}
+
+.kanban-view::-webkit-scrollbar-track {
+  background: var(--bg-1);
+  border-radius: 4px;
+}
+
+.kanban-view::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.kanban-view::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
 }
 
 .kanban-board {
   display: flex;
   gap: 20px;
-  min-width: fit-content;
+  /* ensure board fills container width but can grow beyond and trigger horizontal scroll */
+  min-width: 100%;
   padding: 4px;
+  height: fit-content;
+  align-items: flex-start;
+}
+
+/* When there are 4 columns, make each column 25% width (like col-3) */
+.kanban-board.columns-4 .kanban-column {
+  flex: 0 0 calc((100% - 60px) / 4); /* subtract gaps (20px * 3) approximated as 60px */
+  width: calc((100% - 60px) / 4);
+}
+
+/* Responsive fallback: on small screens keep fixed 300px columns */
+@media (max-width: 900px) {
+  .kanban-board.columns-4 .kanban-column {
+    flex: 0 0 300px;
+    width: 300px;
+  }
 }
 
 .kanban-column {
+  flex: 0 0 300px; /* fixed basis so columns are stable */
   width: 300px;
   background: var(--bg-1);
   border-radius: 8px;
   padding: 16px;
   flex-shrink: 0;
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .column-header {
@@ -1897,6 +1829,26 @@ const toggleProjectMenu = (projectId) => {
   flex-direction: column;
   gap: 12px;
   min-height: 200px;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
+}
+
+.column-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.column-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.column-content::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.column-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
 }
 
 /* Task Card */
@@ -1930,15 +1882,33 @@ const toggleProjectMenu = (projectId) => {
 }
 
 .priority-high {
-  color: #dc3545;
+  color: #b42c3aff;
 }
 
 .priority-medium {
   color: #ffc107;
 }
 
+/* Ensure priority badge doesn't wrap and icon aligns */
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* Fallback priority classes (colors) */
+.priority-high { color: #b42c3aff; }
+.priority-medium { color: #FFC107; }
+.priority-low { color: #28A745; }
+.priority-urgent { color: #7d0000ff; }
+
 .priority-low {
   color: #28a745;
+}
+
+.priority-urgent {
+  color: #7d0000;
 }
 
 .task-title {
@@ -2155,6 +2125,10 @@ const toggleProjectMenu = (projectId) => {
 
 .task-priority-indicator.priority-low {
   background: #28a745;
+}
+
+.task-priority-indicator.priority-urgent {
+  background: #7d0000;
 }
 
 .task-info {

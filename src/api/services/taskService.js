@@ -8,6 +8,8 @@ export const taskService = {
     update: (uuid, payload) => api.put(`/tasks/${uuid}`, payload),
     remove: (uuid) => api.delete(`/tasks/${uuid}`),
 
+    recent: (params) => api.get('/tasks/recent', { params }),
+
     // Update task status
     updateTaskStatus(uuid, status) {
         return api.put(`/tasks/${uuid}/status`, { status });

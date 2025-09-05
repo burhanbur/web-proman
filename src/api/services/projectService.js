@@ -13,6 +13,6 @@ export const projectService = {
     updateMember: (slug, payload) => api.put(`/projects/${slug}/users`, payload),
     removeMember: (slug, payload) => api.delete(`/projects/${slug}/users`, payload),
 
-    // Get project activities
+    getProjectStatus: (slug) => api.get(`/projects/${slug}/status`),
     getProjectActivities: (slug, params = {}) => api.get(`/projects/${slug}/activities`, { params }),
 };
