@@ -33,7 +33,7 @@
           <div class="section-actions">
             <!-- Workspace/Project Filter -->
             <div class="filter-dropdown">
-              <select v-model="selectedTaskFilter" @change="loadTasks" class="filter-select">
+              <select v-model="selectedTaskFilter" @change="onFilterChange" class="filter-select">
                 <option value="all">Semua Tugas</option>
                 <optgroup v-if="workspaces.length > 0" label="Workspace">
                   <option v-for="workspace in workspaces" :key="workspace.id" :value="`workspace-${workspace.id}`">
@@ -90,24 +90,24 @@
         <div v-else-if="currentView === 'kanban'" class="kanban-view">
           <div :class="['kanban-board', boardColumnsClass]">
             <div 
-              v-for="status in taskStatuses" 
-              :key="status.id"
+              v-for="priority in taskPriorities" 
+              :key="priority.id"
               class="kanban-column"
             >
               <div class="column-header">
                 <div class="column-title">
-                  <div class="status-indicator" :style="{ backgroundColor: status.color }"></div>
-                  <span>{{ status.name }}</span>
-                  <span class="task-count">{{ getTasksByStatus(status.id).length }}</span>
+                  <div class="status-indicator" :style="{ backgroundColor: priority.color }"></div>
+                  <span>{{ getPriorityName(priority.name) || priority.name }}</span>
+                  <span class="task-count">{{ getTasksByPriority(priority.id).length }}</span>
                 </div>
-                <button class="btn-icon" @click="addTask(status.id)">
+                <button class="btn-icon" @click="addTask(priority.id)">
                   <font-awesome-icon icon="plus" />
                 </button>
               </div>
               
               <div class="column-content">
                 <div 
-                  v-for="task in getTasksByStatus(status.id)" 
+                  v-for="task in getTasksByPriority(priority.id)" 
                   :key="task.id"
                   class="task-card"
                   @click="openTaskDetail(task)"
@@ -509,7 +509,7 @@
                 <!-- Project Header -->
                 <div class="project-header">
                   <div class="project-title-group">
-                    <div class="project-color-indicator" :style="{ backgroundColor: project.color }"></div>
+                    <div class="project-color-indicator" :style="{ backgroundColor: project.color || '#17a2b8' }"></div>
                     <div class="project-title-info">
                       <h3 class="project-name">{{ project.name }}</h3>
                       <p class="project-description">{{ project.description || 'Tidak ada deskripsi' }}</p>
@@ -690,7 +690,7 @@ const selectedTaskFilter = ref('all'); // 'all', 'workspace-{id}', 'project-{id}
 
 // Task data
 const allTasks = ref([]);
-const taskStatuses = ref([]);
+const taskPriorities = ref([]);
 
 // List view datatable data
 const listTasks = ref([]);
@@ -714,31 +714,15 @@ const listMeta = ref({
 // Search debounce
 let searchTimeout = null;
 
-// Load priorities from API and map to taskStatuses shape
+// Load priorities from API and map to taskPriorities shape
 const loadPriorities = async () => {
   try {
     const res = await priorityService.list();
     const priorities = res.data.data || res.data || [];
     // Map to expected local shape
-    taskStatuses.value = priorities.map(p => ({ id: p.code || p.id || p.name, name: p.name, color: p.color || '#6c757d' }));
-    // Fallback default if empty
-    if (taskStatuses.value.length === 0) {
-      taskStatuses.value = [
-        { id: 'todo', name: 'To Do', color: '#6c757d' },
-        { id: 'in_progress', name: 'In Progress', color: '#17a2b8' },
-        { id: 'review', name: 'In Review', color: '#ffc107' },
-        { id: 'done', name: 'Done', color: '#28a745' }
-      ];
-    }
+    taskPriorities.value = priorities.map(p => ({ id: p.code || p.id || p.name, name: p.name, color: p.color || '#6c757d' }));
   } catch (error) {
     console.error('Error loading priorities:', error);
-    // keep fallback defaults
-    taskStatuses.value = [
-      { id: 'todo', name: 'To Do', color: '#6c757d' },
-      { id: 'in_progress', name: 'In Progress', color: '#17a2b8' },
-      { id: 'review', name: 'In Review', color: '#ffc107' },
-      { id: 'done', name: 'Done', color: '#28A745' }
-    ];
   }
 };
 
@@ -755,11 +739,18 @@ onMounted(async () => {
 });
 
 // Computed property for filtered projects
+// Accepts projects that may store workspace id in different shapes
 const filteredProjects = computed(() => {
-  if (selectedWorkspaceFilter.value === 'all') {
-    return allProjects.value;
-  }
-  return allProjects.value.filter(project => project.workspace_id === selectedWorkspaceFilter.value);
+  const filter = selectedWorkspaceFilter.value;
+  if (filter === 'all') return allProjects.value;
+
+  // normalize filter to string for loose comparison (handles number/string)
+  const filterStr = String(filter);
+
+  return allProjects.value.filter(project => {
+    const wid = project.workspace_id ?? project.workspace?.id ?? project.workspace?.workspace_id ?? project.workspace ?? null;
+    return wid !== null && String(wid) === filterStr;
+  });
 });
 
 // Load workspaces
@@ -797,6 +788,15 @@ const selectWorkspace = async (workspace) => {
   await loadProjects(workspace.slug);
   // Load projects to update filter dropdown
   await loadTasks();
+};
+
+// Called when user changes workspace/project filter in the UI
+const onFilterChange = async () => {
+  // Refresh kanban source
+  await loadTasks();
+  // Reset list page and reload list view as well
+  listParams.value.page = 1;
+  await loadListTasks();
 };
 
 // Load projects for selected workspace
@@ -851,10 +851,17 @@ const loadRecentTasks = async () => {
 // Load tasks for kanban and list view (fetch from API)
 const loadTasks = async (filterValue = null) => {
   try {
-    const filter = filterValue || selectedTaskFilter.value;
+    // If this function is accidentally called from a DOM event handler
+    // the first argument may be a Browser Event. Ignore Events and use
+    // the selectedTaskFilter instead.
+    if (filterValue instanceof Event) {
+      filterValue = null;
+    }
+
+    let filter = (filterValue !== null && filterValue !== undefined) ? filterValue : selectedTaskFilter.value;
     const params = {};
 
-    if (filter === 'all') {
+  if (filter === 'all') {
       // no extra params
     } else if (filter.startsWith('workspace-')) {
       params.workspace = parseInt(filter.split('-')[1]);
@@ -879,7 +886,7 @@ const loadTasks = async (filterValue = null) => {
       status_raw: item.status || null,
       // project in API is nested under `project` with project_id
       project: item.project || null,
-      workspace_id: item.project?.workspace_id || item.workspace_id || null,
+      workspace_id: item.project?.workspace?.workspace_id || item.project?.workspace?.id || item.project?.workspace_id || item.workspace_id || null,
       // assignees in API sample use user_id and assigned_at
       assignees: (item.assignees || []).map(a => ({
         user_id: a.user_id || a.id,
@@ -894,8 +901,6 @@ const loadTasks = async (filterValue = null) => {
       created_at: item.created_at || item.createdAt || null,
       updated_at: item.updated_at || item.updatedAt || null,
     }));
-
-    // console.log('Tasks loaded:', allTasks.value);
   } catch (error) {
     console.error('Error loading tasks:', error);
     errorToast('Gagal memuat tugas');
@@ -915,6 +920,28 @@ const loadListTasks = async () => {
       order: listParams.value.order
     };
 
+    // Apply workspace/project filter (same behavior as kanban)
+    let listFilter = selectedTaskFilter.value;
+    if (listFilter instanceof Event) listFilter = null;
+    let fetchAllForFilter = false;
+    if (typeof listFilter === 'string') {
+      if (listFilter.startsWith('workspace-')) {
+        params.workspace = parseInt(listFilter.split('-')[1]);
+        // to ensure correct filtering in list view, fetch full dataset and filter client-side
+        fetchAllForFilter = true;
+      } else if (listFilter.startsWith('project-')) {
+        params.project = parseInt(listFilter.split('-')[1]);
+        // project filtering can be handled server-side, but fetch all to be safe
+        fetchAllForFilter = true;
+      }
+    }
+
+    if (fetchAllForFilter) {
+      // request larger limit so we can filter client-side and paginate reliably
+      params.limit = 10000;
+      params.page = 1;
+    }
+
     // Remove empty params
     Object.keys(params).forEach(key => {
       if (params[key] === undefined || params[key] === '') {
@@ -922,12 +949,10 @@ const loadListTasks = async () => {
       }
     });
 
-    console.log('Loading list tasks with params:', params);
     const res = await taskService.recent(params);
     const data = res.data;
-    console.log('API Response:', data);
 
-    // Handle pagination response - check for nested pagination object
+  // Handle pagination response - check for nested pagination object
     if (data.data && Array.isArray(data.data) && data.pagination) {
       // Response with nested pagination object (like your API)
       listTasks.value = data.data.map(item => ({
@@ -942,7 +967,7 @@ const loadListTasks = async () => {
         status: item.status ? (item.status.status_id || item.status.id || item.status.name) : (item.status_id || null),
         status_raw: item.status || null,
         project: item.project || null,
-        workspace_id: item.project?.workspace_id || item.workspace_id || null,
+        workspace_id: item.project?.workspace?.workspace_id || item.project?.workspace?.id || item.project?.workspace_id || item.workspace_id || null,
         assignees: (item.assignees || []).map(a => ({
           user_id: a.user_id || a.id,
           id: a.user_id || a.id,
@@ -966,6 +991,31 @@ const loadListTasks = async () => {
         from: data.pagination.from || 0,
         to: data.pagination.to || 0
       };
+
+      // If we fetched full dataset for client-side filter, apply filter and recalc meta
+      if (fetchAllForFilter) {
+        let filtered = listTasks.value.filter(t => {
+          if (params.workspace) {
+            return t.workspace_id == params.workspace;
+          }
+          if (params.project) {
+            const pid = t.project?.project_id || t.project?.id || null;
+            return pid == params.project;
+          }
+          return true;
+        });
+
+        const total = filtered.length;
+        const per = listParams.value.per_page;
+        const current = listParams.value.page || 1;
+        const last = Math.max(1, Math.ceil(total / per));
+        const from = total > 0 ? ((current - 1) * per) + 1 : 0;
+        const to = Math.min(current * per, total);
+
+        listMeta.value = { current_page: current, last_page: last, per_page: per, total, from, to };
+        // slice for current page
+        listTasks.value = filtered.slice((current - 1) * per, current * per);
+      }
     } else if (data.data && Array.isArray(data.data)) {
       // Laravel pagination response (top-level pagination)
       listTasks.value = data.data.map(item => ({
@@ -980,7 +1030,7 @@ const loadListTasks = async () => {
         status: item.status ? (item.status.status_id || item.status.id || item.status.name) : (item.status_id || null),
         status_raw: item.status || null,
         project: item.project || null,
-        workspace_id: item.project?.workspace_id || item.workspace_id || null,
+        workspace_id: item.project?.workspace?.workspace_id || item.project?.workspace?.id || item.project?.workspace_id || item.workspace_id || null,
         assignees: (item.assignees || []).map(a => ({
           user_id: a.user_id || a.id,
           id: a.user_id || a.id,
@@ -1004,6 +1054,26 @@ const loadListTasks = async () => {
         from: data.from || 0,
         to: data.to || 0
       };
+
+      if (fetchAllForFilter) {
+        // apply client-side filter and recalc meta
+        let filtered = listTasks.value.filter(t => {
+          if (params.workspace) return t.workspace_id == params.workspace;
+          if (params.project) {
+            const pid = t.project?.project_id || t.project?.id || null;
+            return pid == params.project;
+          }
+          return true;
+        });
+        const total = filtered.length;
+        const per = listParams.value.per_page;
+        const current = listParams.value.page || 1;
+        const last = Math.max(1, Math.ceil(total / per));
+        const from = total > 0 ? ((current - 1) * per) + 1 : 0;
+        const to = Math.min(current * per, total);
+        listMeta.value = { current_page: current, last_page: last, per_page: per, total, from, to };
+        listTasks.value = filtered.slice((current - 1) * per, current * per);
+      }
     } else {
       // Simple array response
       listTasks.value = (data || []).map(item => ({
@@ -1018,7 +1088,7 @@ const loadListTasks = async () => {
         status: item.status ? (item.status.status_id || item.status.id || item.status.name) : (item.status_id || null),
         status_raw: item.status || null,
         project: item.project || null,
-        workspace_id: item.project?.workspace_id || item.workspace_id || null,
+        workspace_id: item.project?.workspace?.workspace_id || item.project?.workspace?.id || item.project?.workspace_id || item.workspace_id || null,
         assignees: (item.assignees || []).map(a => ({
           user_id: a.user_id || a.id,
           id: a.user_id || a.id,
@@ -1034,18 +1104,35 @@ const loadListTasks = async () => {
       }));
 
       // Fake pagination for simple response
-      listMeta.value = {
-        current_page: 1,
-        last_page: Math.max(1, Math.ceil(listTasks.value.length / listParams.value.per_page)),
-        per_page: listParams.value.per_page,
-        total: listTasks.value.length,
-        from: listTasks.value.length > 0 ? 1 : 0,
-        to: listTasks.value.length
-      };
+      // apply filter client-side if requested
+      if (fetchAllForFilter) {
+        let filtered = listTasks.value.filter(t => {
+          if (params.workspace) return t.workspace_id == params.workspace;
+          if (params.project) {
+            const pid = t.project?.project_id || t.project?.id || null;
+            return pid == params.project;
+          }
+          return true;
+        });
+        const total = filtered.length;
+        const per = listParams.value.per_page;
+        const current = listParams.value.page || 1;
+        const last = Math.max(1, Math.ceil(total / per));
+        const from = total > 0 ? ((current - 1) * per) + 1 : 0;
+        const to = Math.min(current * per, total);
+        listMeta.value = { current_page: current, last_page: last, per_page: per, total, from, to };
+        listTasks.value = filtered.slice((current - 1) * per, current * per);
+      } else {
+        listMeta.value = {
+          current_page: 1,
+          last_page: Math.max(1, Math.ceil(listTasks.value.length / listParams.value.per_page)),
+          per_page: listParams.value.per_page,
+          total: listTasks.value.length,
+          from: listTasks.value.length > 0 ? 1 : 0,
+          to: listTasks.value.length
+        };
+      }
     }
-
-    console.log('List tasks loaded:', listTasks.value.length, 'items');
-    console.log('List meta:', listMeta.value);
   } catch (error) {
     console.error('Error loading list tasks:', error);
     errorToast('Gagal memuat daftar tugas');
@@ -1128,8 +1215,37 @@ const clearSearch = () => {
 };
 
 // Task management functions
-const getTasksByStatus = (statusId) => {
-  return allTasks.value.filter(task => task.status === statusId);
+const getTasksByPriority = (priorityId) => {
+  // Respect selected workspace/project filter when showing kanban columns
+  const filter = selectedTaskFilter.value;
+  let workspaceFilterId = null;
+  let projectFilterId = null;
+
+  if (typeof filter === 'string') {
+    if (filter.startsWith('workspace-')) {
+      workspaceFilterId = parseInt(filter.split('-')[1]);
+    } else if (filter.startsWith('project-')) {
+      projectFilterId = parseInt(filter.split('-')[1]);
+    }
+  }
+
+  return allTasks.value.filter(task => {
+    // apply workspace/project filtering if active
+    if (workspaceFilterId && task.workspace_id != workspaceFilterId) return false;
+    if (projectFilterId) {
+      const pid = task.project?.project_id || task.project?.id || null;
+      if (pid != projectFilterId) return false;
+    }
+
+    // Robust priority matching: compare against nested raw fields and normalized priority
+    const tRaw = task.priority_raw || {};
+    if (tRaw.priority_id != null && String(tRaw.priority_id) === String(priorityId)) return true;
+    if (tRaw.id != null && String(tRaw.id) === String(priorityId)) return true;
+    if (tRaw.name != null && String(tRaw.name) === String(priorityId)) return true;
+    if (task.priority != null && String(task.priority) === String(priorityId)) return true;
+
+    return false;
+  });
 };
 
 const getPriorityIcon = (priority) => {
@@ -1163,9 +1279,9 @@ const slugify = (value) => {
     .replace(/^-+|-+$/g, '');     // trim dashes
 };
 
-// Compute dynamic class based on number of taskStatuses to allow grid-like columns (e.g. 4 statuses -> columns-4)
+// Compute dynamic class based on number of taskPriorities to allow grid-like columns (e.g. 4 statuses -> columns-4)
 const boardColumnsClass = computed(() => {
-  const n = taskStatuses.value.length || 1;
+  const n = taskPriorities.value.length || 1;
   return `columns-${Math.min(n, 12)}`;
 });
 
@@ -1205,14 +1321,22 @@ const getUserRole = (workspace) => {
 };
 
 const getWorkspaceName = (workspaceId) => {
-  if (!workspaceId) return 'Unknown Workspace';
-  const workspace = workspaces.value.find(w => w.id === workspaceId);
-  return workspace?.name || 'Unknown Workspace';
+  // allow passing a ref or plain value
+  const id = (workspaceId && workspaceId.value !== undefined) ? workspaceId.value : workspaceId;
+  if (id === null || id === undefined || id === 'all') return 'Semua Workspace';
+
+  const ws = workspaces.value.find(w => String(w.id) === String(id));
+  return ws?.name || 'Unknown Workspace';
 };
 
 const filterProjects = () => {
-  // This function is called when workspace filter changes
-  // The actual filtering is handled by the computed property
+  // Ensure selectedWorkspaceFilter is a simple primitive (number or 'all')
+  if (selectedWorkspaceFilter.value !== 'all') {
+    // coerce to number when possible
+    const n = Number(selectedWorkspaceFilter.value);
+    if (!Number.isNaN(n)) selectedWorkspaceFilter.value = n;
+  }
+  // computed `filteredProjects` will react automatically
 };
 
 const calculateProgress = (project) => {

@@ -81,6 +81,7 @@ import {
   faBackward,
   faRefresh,
   faColumns,
+  faStar,
   faEllipsisH
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -167,5 +168,6 @@ library.add(
   faBackward,
   faRefresh,
   faColumns,
+  faStar,
   faEllipsisH
 );
