@@ -98,11 +98,20 @@
       <div class="view-content">
         <!-- Board View -->
         <div v-if="activeView === 'board'" class="board-view">
-          <div class="board-columns">
+          <div 
+            class="board-columns" 
+            ref="boardContainer"
+            @scroll="handleBoardScroll"
+          >
             <div 
               v-for="status in taskStatuses" 
               :key="status.id"
               class="board-column"
+              :data-status-id="status.id"
+              :class="{ 'drop-zone-active': dropZoneActive === status.id }"
+              @dragover.prevent="handleDragOver($event, status.id)"
+              @dragleave="handleDragLeave"
+              @drop="handleDrop($event, status.id)"
             >
               <div class="column-header">
                 <div class="status-indicator" :style="{ backgroundColor: status.color }"></div>
@@ -117,13 +126,26 @@
                   v-for="task in getTasksByStatus(status.id)" 
                   :key="task.id"
                   class="task-card"
-                  @click="openTaskDetail(task)"
+                  :class="{ 
+                    'task-dragging': draggedTask?.id === task.id,
+                    'task-ghost': draggedTask?.id === task.id && isDragging
+                  }"
+                  :draggable="true"
+                  @dragstart="handleDragStart($event, task)"
+                  @dragend="handleDragEnd"
+                  @click="handleTaskClick(task, $event)"
+                  @touchstart="handleTouchStart($event, task)"
+                  @touchmove="handleTouchMove"
+                  @touchend="handleTouchEnd"
+                  :aria-label="`Task: ${task.title}. Current status: ${task.status?.name || 'Unknown'}. Drag to change status.`"
+                  tabindex="0"
+                  @keydown="handleTaskKeydown($event, task)"
                 >
                   <div class="task-header">
                     <h4 class="task-title">{{ task.title }}</h4>
-          <div class="task-priority" :class="(task.priority && task.priority.name) ? task.priority.name.toLowerCase() : ''">
+                      <div class="task-priority" :class="(task.priority && task.priority.name) ? task.priority.name.toLowerCase() : ''">
                       <font-awesome-icon 
-            :icon="getPriorityIcon(task.priority)" 
+                        :icon="getPriorityIcon(task.priority)" 
                         size="sm" 
                       />
                     </div>
@@ -163,6 +185,14 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          <!-- Loading overlay during status update -->
+          <div v-if="updatingTaskStatus" class="status-update-overlay">
+            <div class="status-update-message">
+              <div class="loading-spinner small"></div>
+              <span>Memperbarui status tugas...</span>
             </div>
           </div>
         </div>
@@ -424,6 +454,19 @@ const activeView = ref('board');
 const showInviteModal = ref(false);
 const showCreateTaskModal = ref(false);
 
+// Drag and drop state
+const isDragging = ref(false);
+const draggedTask = ref(null);
+const dropZoneActive = ref(null);
+const updatingTaskStatus = ref(false);
+const dragStartPosition = ref({ x: 0, y: 0 });
+const dragThreshold = 5; // pixels
+
+// Touch handling state
+const touchStarted = ref(false);
+const touchStartPosition = ref({ x: 0, y: 0 });
+const touchCurrentPosition = ref({ x: 0, y: 0 });
+
 // Filters
 const filterStatus = ref('');
 const filterAssignee = ref('');
@@ -643,9 +686,309 @@ const openTaskDetail = (task) => {
   console.log('Open task detail:', task);
 };
 
+const handleTaskClick = (task, event) => {
+  // Only open task detail if not dragging
+  if (!isDragging.value && !touchStarted.value) {
+    openTaskDetail(task);
+  }
+};
+
 const toggleTaskMenu = (taskId) => {
   // Implement task menu logic
   console.log('Toggle task menu for:', taskId);
+};
+
+// Drag and Drop Methods
+const handleDragStart = (event, task) => {
+  draggedTask.value = task;
+  isDragging.value = true;
+  
+  // Store drag start position
+  dragStartPosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  };
+  
+  // Set drag effect and data
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', task.id.toString());
+  
+  // Add dragging class after a slight delay to avoid flash
+  setTimeout(() => {
+    if (isDragging.value) {
+      event.target.classList.add('task-dragging');
+    }
+  }, 50);
+  
+  // Announce to screen readers
+  const announcement = `Started dragging task: ${task.title}`;
+  announceToScreenReader(announcement);
+};
+
+const handleDragEnd = (event) => {
+  isDragging.value = false;
+  draggedTask.value = null;
+  dropZoneActive.value = null;
+  
+  // Clean up classes
+  event.target.classList.remove('task-dragging');
+  
+  // Clear any remaining drop zone highlights
+  const dropZones = document.querySelectorAll('.drop-zone-active');
+  dropZones.forEach(zone => zone.classList.remove('drop-zone-active'));
+};
+
+const handleDragOver = (event, statusId) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  
+  // Only highlight if dragging a different status
+  if (draggedTask.value && draggedTask.value.status_id !== statusId) {
+    dropZoneActive.value = statusId;
+  }
+  
+  // Auto-scroll horizontally if near edges
+  const container = event.currentTarget.closest('.board-columns');
+  if (container) {
+    const rect = container.getBoundingClientRect();
+    const scrollSpeed = 10;
+    
+    if (event.clientX < rect.left + 100) {
+      container.scrollLeft -= scrollSpeed;
+    } else if (event.clientX > rect.right - 100) {
+      container.scrollLeft += scrollSpeed;
+    }
+  }
+};
+
+const handleDragLeave = (event) => {
+  // Only clear drop zone if leaving the column entirely
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = event.clientX;
+  const y = event.clientY;
+  
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    dropZoneActive.value = null;
+  }
+};
+
+const handleDrop = async (event, newStatusId) => {
+  event.preventDefault();
+  dropZoneActive.value = null;
+  
+  if (!draggedTask.value) return;
+  
+  const task = draggedTask.value;
+  const oldStatusId = task.status_id || task.status?.id;
+  
+  // Don't update if dropping on the same status
+  if (oldStatusId === newStatusId) {
+    return;
+  }
+  
+  // Update task status
+  await updateTaskStatus(task, newStatusId);
+  
+  // Announce completion to screen readers
+  const newStatus = taskStatuses.value.find(s => s.id === newStatusId);
+  const announcement = `Task "${task.title}" moved to ${newStatus?.name || 'Unknown status'}`;
+  announceToScreenReader(announcement);
+};
+
+// Touch handling for mobile drag
+const handleTouchStart = (event, task) => {
+  touchStarted.value = true;
+  draggedTask.value = task;
+  
+  const touch = event.touches[0];
+  touchStartPosition.value = {
+    x: touch.clientX,
+    y: touch.clientY
+  };
+  touchCurrentPosition.value = { ...touchStartPosition.value };
+  
+  // Prevent text selection
+  event.preventDefault();
+};
+
+const handleTouchMove = (event) => {
+  if (!touchStarted.value || !draggedTask.value) return;
+  
+  event.preventDefault();
+  const touch = event.touches[0];
+  touchCurrentPosition.value = {
+    x: touch.clientX,
+    y: touch.clientY
+  };
+  
+  // Calculate distance moved
+  const deltaX = Math.abs(touch.clientX - touchStartPosition.value.x);
+  const deltaY = Math.abs(touch.clientY - touchStartPosition.value.y);
+  
+  // Start visual dragging if moved enough horizontally
+  if (deltaX > dragThreshold && deltaX > deltaY) {
+    isDragging.value = true;
+    
+    // Find which column we're over
+    const columns = document.querySelectorAll('.board-column');
+    let targetColumn = null;
+    
+    columns.forEach(column => {
+      const rect = column.getBoundingClientRect();
+      if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+          touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        targetColumn = column;
+      }
+    });
+    
+    if (targetColumn) {
+      const statusId = parseInt(targetColumn.dataset.statusId);
+      if (statusId !== draggedTask.value.status_id) {
+        dropZoneActive.value = statusId;
+      }
+    } else {
+      dropZoneActive.value = null;
+    }
+    
+    // Auto-scroll horizontally
+    const container = document.querySelector('.board-columns');
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const scrollSpeed = 10;
+      
+      if (touch.clientX < rect.left + 50) {
+        container.scrollLeft -= scrollSpeed;
+      } else if (touch.clientX > rect.right - 50) {
+        container.scrollLeft += scrollSpeed;
+      }
+    }
+  }
+};
+
+const handleTouchEnd = async (event) => {
+  if (!touchStarted.value) return;
+  
+  const wasDragging = isDragging.value;
+  const task = draggedTask.value;
+  
+  // Reset touch state
+  touchStarted.value = false;
+  isDragging.value = false;
+  
+  if (wasDragging && task && dropZoneActive.value) {
+    // Complete the drag operation
+    await updateTaskStatus(task, dropZoneActive.value);
+    
+    // Announce completion
+    const newStatus = taskStatuses.value.find(s => s.id === dropZoneActive.value);
+    const announcement = `Task "${task.title}" moved to ${newStatus?.name || 'Unknown status'}`;
+    announceToScreenReader(announcement);
+  }
+  
+  // Clean up
+  draggedTask.value = null;
+  dropZoneActive.value = null;
+};
+
+// Keyboard accessibility
+const handleTaskKeydown = async (event, task) => {
+  // Handle arrow keys for keyboard navigation
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault();
+    
+    const currentStatusIndex = taskStatuses.value.findIndex(s => 
+      s.id === (task.status_id || task.status?.id)
+    );
+    
+    let newStatusIndex;
+    if (event.key === 'ArrowLeft') {
+      newStatusIndex = Math.max(0, currentStatusIndex - 1);
+    } else {
+      newStatusIndex = Math.min(taskStatuses.value.length - 1, currentStatusIndex + 1);
+    }
+    
+    if (newStatusIndex !== currentStatusIndex) {
+      const newStatus = taskStatuses.value[newStatusIndex];
+      await updateTaskStatus(task, newStatus.id);
+      
+      // Announce the change
+      const announcement = `Task "${task.title}" moved to ${newStatus.name}`;
+      announceToScreenReader(announcement);
+    }
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    openTaskDetail(task);
+  }
+};
+
+// Update task status via API
+const updateTaskStatus = async (task, newStatusId) => {
+  if (updatingTaskStatus.value) return;
+  
+  const oldStatusId = task.status_id || task.status?.id;
+  if (oldStatusId === newStatusId) return;
+  
+  updatingTaskStatus.value = true;
+  
+  try {
+    // Optimistically update UI
+    const oldStatus = task.status_id || task.status?.id;
+    task.status_id = newStatusId;
+    
+    // Find and update status object if it exists
+    if (task.status) {
+      const newStatus = taskStatuses.value.find(s => s.id === newStatusId);
+      if (newStatus) {
+        task.status = { ...newStatus };
+      }
+    }
+    
+    // Call API to update status
+    await taskService.updateTaskStatus(task.uuid || task.id, { status_id: newStatusId });
+    
+    successToast('Status tugas berhasil diperbarui');
+    
+  } catch (error) {
+    // Revert optimistic update on error
+    task.status_id = oldStatusId;
+    if (task.status) {
+      const oldStatusObj = taskStatuses.value.find(s => s.id === oldStatusId);
+      if (oldStatusObj) {
+        task.status = { ...oldStatusObj };
+      }
+    }
+    
+    console.error('Error updating task status:', error);
+    errorToast('Gagal memperbarui status tugas');
+  } finally {
+    updatingTaskStatus.value = false;
+  }
+};
+
+// Utility function for screen reader announcements
+const announceToScreenReader = (message) => {
+  const announcement = document.createElement('div');
+  announcement.setAttribute('aria-live', 'polite');
+  announcement.setAttribute('aria-atomic', 'true');
+  announcement.className = 'sr-only';
+  announcement.textContent = message;
+  
+  document.body.appendChild(announcement);
+  
+  // Remove after announcement
+  setTimeout(() => {
+    document.body.removeChild(announcement);
+  }, 1000);
+};
+
+// Handle board horizontal scrolling
+const handleBoardScroll = (event) => {
+  // Could add scroll indicators or other UX enhancements here
+  const container = event.target;
+  const isAtStart = container.scrollLeft === 0;
+  const isAtEnd = container.scrollLeft >= container.scrollWidth - container.clientWidth;
+  
+  // Could emit events or update reactive state for scroll indicators
 };
 
 // Member actions
@@ -865,12 +1208,46 @@ const getMemberRole = (member) => {
 /* Board View */
 .board-view {
   min-height: 600px;
+  position: relative;
+  /* let content determine height, no fixed height constraint */
+  display: flex;
+  flex-direction: column;
 }
 
 .board-columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  display: flex;
   gap: 24px;
+  /* only horizontal scroll, let height be natural */
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 16px;
+  align-items: flex-start; /* align columns to top, let them grow naturally */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Horizontal scrolling for many columns */
+@media (min-width: 768px) {
+  .board-columns {
+    /* ensure flex layout on desktop too */
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-bottom: 12px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    align-items: flex-start;
+  }
+
+  .board-column {
+    /* responsive width on desktop */
+    flex: 0 0 auto;
+    min-width: 300px;
+    width: clamp(300px, 20vw, 350px);
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 .board-column {
@@ -878,7 +1255,21 @@ const getMemberRole = (member) => {
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 16px;
-  min-height: 500px;
+  /* responsive width with minimum constraint */
+  flex: 0 0 auto;
+  min-width: 280px;
+  width: clamp(280px, 25vw, 400px); /* responsive width between 280px and 400px */
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+}
+
+/* Drop zone styling */
+.board-column.drop-zone-active {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+  box-shadow: 0 0 0 2px var(--color-primary-200);
+  transform: scale(1.02);
 }
 
 .column-header {
@@ -914,12 +1305,21 @@ const getMemberRole = (member) => {
   border-radius: 12px;
   min-width: 24px;
   text-align: center;
+  transition: all 0.2s ease;
+}
+
+.drop-zone-active .column-count {
+  background: var(--color-primary-500);
+  color: white;
 }
 
 .column-tasks {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* no scroll, show all tasks directly */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .task-card {
@@ -929,12 +1329,43 @@ const getMemberRole = (member) => {
   padding: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 
 .task-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   border-color: var(--color-primary-200);
+}
+
+.task-card:focus {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+/* Drag states */
+.task-card.task-dragging {
+  opacity: 0.7;
+  transform: rotate(2deg) scale(1.05);
+  z-index: 1000;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  border-color: var(--color-primary-500);
+}
+
+.task-card.task-ghost {
+  opacity: 0.3;
+  transform: scale(0.95);
+}
+
+/* Mobile drag feedback */
+@media (max-width: 768px) {
+  .task-card.task-dragging {
+    transform: scale(1.1);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+  }
 }
 
 .task-header {
@@ -960,6 +1391,7 @@ const getMemberRole = (member) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
 }
 
 .task-priority.low { background: #e5f3ff; color: #0066cc; }
@@ -995,6 +1427,7 @@ const getMemberRole = (member) => {
   overflow: hidden;
   margin-left: -6px;
   position: relative;
+  transition: all 0.2s ease;
 }
 
 .assignee-avatar:first-child {
@@ -1032,6 +1465,7 @@ const getMemberRole = (member) => {
   font-weight: 600;
   margin-left: -6px;
   border: 2px solid var(--color-background);
+  transition: all 0.2s ease;
 }
 
 .task-info {
@@ -1057,6 +1491,77 @@ const getMemberRole = (member) => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Status update overlay */
+.status-update-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  border-radius: 12px;
+}
+
+.status-update-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Drag animations */
+@keyframes dragPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.task-card.task-dragging {
+  animation: dragPulse 0.6s ease-in-out infinite;
+}
+
+/* Custom scrollbar for horizontal scrolling */
+.board-columns::-webkit-scrollbar {
+  height: 8px;
+}
+
+.board-columns::-webkit-scrollbar-track {
+  background: var(--color-background-soft);
+  border-radius: 4px;
+}
+
+.board-columns::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.board-columns::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
 }
 
 /* List View */
@@ -1639,9 +2144,35 @@ const getMemberRole = (member) => {
     flex-shrink: 0;
   }
 
+  /* Mobile-first board layout */
   .board-columns {
-    grid-template-columns: 1fr;
+    display: flex;
     gap: 16px;
+    padding: 0 16px 16px 16px;
+    margin: 0 -16px;
+  }
+
+  .board-column {
+    min-width: 260px;
+    flex-shrink: 0;
+  }
+
+  /* Enhanced touch targets for mobile */
+  .task-card {
+    padding: 20px 16px;
+    touch-action: manipulation;
+  }
+
+  .task-card.task-dragging {
+    transform: scale(1.08);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    z-index: 9999;
+  }
+
+  /* Better tap targets */
+  .btn-icon {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .task-list-header,
@@ -1687,6 +2218,81 @@ const getMemberRole = (member) => {
   .btn {
     width: 100%;
     justify-content: center;
+  }
+
+  /* Smaller cards on very small screens */
+  .board-column {
+    min-width: 240px;
+  }
+
+  .task-card {
+    padding: 16px 12px;
+  }
+
+  /* Status update overlay adjustments */
+  .status-update-message {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+}
+
+/* Landscape orientation on mobile */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+  .board-view {
+    min-height: 300px;
+  }
+
+  .board-column {
+    min-height: 250px;
+  }
+
+  .task-card {
+    padding: 12px;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .task-card.task-dragging {
+    transform: scale(1.05);
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .task-card,
+  .board-column,
+  .assignee-avatar,
+  .column-count {
+    transition: none;
+  }
+
+  .task-card.task-dragging {
+    animation: none;
+    transform: scale(1.02);
+  }
+
+  .board-columns {
+    scroll-behavior: auto;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .status-update-overlay {
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .board-columns::-webkit-scrollbar-track {
+    background: #2d3748;
+  }
+
+  .board-columns::-webkit-scrollbar-thumb {
+    background: #4a5568;
+  }
+
+  .board-columns::-webkit-scrollbar-thumb:hover {
+    background: #718096;
   }
 }
 </style>

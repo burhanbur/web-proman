@@ -11,8 +11,8 @@ export const taskService = {
     recent: (params) => api.get('/tasks/recent', { params }),
 
     // Update task status
-    updateTaskStatus(uuid, status) {
-        return api.put(`/tasks/${uuid}/status`, { status });
+    updateTaskStatus(uuid, payload) {
+        return api.put(`/tasks/${uuid}/status`, payload);
     },
 
     // Assign task to user
