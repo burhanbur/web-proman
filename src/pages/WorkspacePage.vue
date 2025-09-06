@@ -20,29 +20,29 @@
             </div>
             <div class="workspace-details">
               <h1 class="workspace-name">{{ workspace.name }}</h1>
-        <p v-if="workspace.description" class="workspace-description">{{ workspace.description }}</p>
+              <p v-if="workspace.description" class="workspace-description">{{ workspace.description }}</p>
               <div class="workspace-meta">
                 <span class="meta-item">
                   <font-awesome-icon icon="users" size="sm" />
-          {{ workspace.members_count || 0 }} Anggota
+                  {{ workspace.member_count || 0 }} Anggota
                 </span>
                 <span class="meta-item">
                   <font-awesome-icon icon="folder" size="sm" />
-          {{ projects.length }} Proyek
+                  {{ projects.length }} Proyek
                 </span>
                 <span class="meta-item">
                   <font-awesome-icon icon="calendar" size="sm" />
-          Dibuat {{ formatDate(workspace.created_at) }}
+                  Dibuat {{ formatDate(workspace.created_at) }}
                 </span>
               </div>
             </div>
           </div>
           <div class="workspace-actions">
-            <button class="btn btn-secondary" @click="showInviteModal = true">
+            <button class="btn btn-secondary" @click="showInviteModal = true" v-show="activeTab === 'members'">
               <font-awesome-icon icon="user-plus" size="sm" />
               Undang Anggota
             </button>
-            <button class="btn btn-primary" @click="showCreateProjectModal = true">
+            <button class="btn btn-primary" @click="showCreateProjectModal = true" v-show="activeTab === 'projects'">
               <font-awesome-icon icon="plus" size="sm" />
               Buat Proyek
             </button>
@@ -130,7 +130,7 @@
                     </span>
                     <span class="stat-item">
                       <font-awesome-icon icon="circle" size="sm" />
-                      {{ project.tasks_count || 0 }} task
+                      {{ project.tasks_count || 0 }} tugas
                     </span>
                   </div>
                   <div class="project-members">
@@ -190,21 +190,49 @@
               <p>Aktivitas akan muncul di sini ketika anggota bekerja pada proyek</p>
             </div>
             <div v-else class="activity-list">
-              <div 
-                v-for="activity in activities" 
-                :key="activity.id"
-                class="activity-item"
-              >
-                <div class="activity-avatar">
-                  <img v-if="activity.user?.avatar" :src="activity.user.avatar" :alt="activity.user.name" />
-                  <div v-else class="activity-avatar-fallback">{{ getMemberInitials(activity.user?.name) }}</div>
-                </div>
-                <div class="activity-content">
-                  <p class="activity-text">{{ activity.description }}</p>
-                  <span class="activity-time">{{ formatDate(activity.created_at) }}</span>
+                <div 
+                  v-for="activity in activities" 
+                  :key="activity.id"
+                  class="activity-item"
+                >
+                  <div class="activity-avatar">
+                    <img v-if="activity.user?.avatar" :src="activity.user.avatar" :alt="activity.user.name" />
+                    <div v-else class="activity-avatar-fallback">{{ getMemberInitials(activity.user?.name) }}</div>
+                  </div>
+                
+                  <div class="activity-content">
+                    <div class="activity-header">
+                      <span class="activity-user">{{ activity.user?.name || 'Unknown User' }}</span>
+                      <span class="activity-time">{{ formatActivityTime(activity.created_at) }}</span>
+                    </div>
+
+                    <div class="activity-message">
+                      <template v-if="activity.type === 'audit'">
+                        <span class="activity-action">{{ getActivityMessage(activity) }}</span>
+                      </template>
+
+                      <template v-else-if="activity.type === 'task_activity'">
+                        <span class="activity-action">{{ activity.action_text }}</span>
+                        <span v-if="activity.task" class="activity-target">di tugas "{{ activity.task.title }}"</span>
+                      </template>
+
+                      <template v-else-if="activity.type === 'comment'">
+                        <span class="activity-action">menambahkan komentar</span>
+                        <span v-if="activity.task" class="activity-target">di tugas "{{ activity.task.title }}"</span>
+                        <div class="activity-comment">{{ activity.comment }}</div>
+                      </template>
+
+                      <template v-else>
+                        <span>{{ renderActivityText(activity) }}</span>
+                      </template>
+                    </div>
+
+                    <div class="activity-type-badge" :class="activity.type">
+                      {{ getActivityTypeLabel(activity.type) }}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
           </div>
 
           <!-- Settings Tab -->
@@ -306,6 +334,7 @@ const loadActivities = async (workspaceSlug) => {
   try {
     const response = await workspaceService.getWorkspaceActivities(workspaceSlug);
     activities.value = response.data.data || [];
+    console.log('Activities loaded:', activities.value);
   } catch (error) {
     console.error('Error loading activities:', error);
   }
@@ -333,6 +362,65 @@ const formatDate = (dateString) => {
     month: 'long',
     day: 'numeric'
   });
+};
+
+// Format date/time for activity timestamps (short)
+const formatDateTime = (dateString) => {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  if (isNaN(d)) return dateString;
+  const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+  return d.toLocaleDateString('id-ID', options).replace(',', '');
+};
+
+// Activity helpers (project-style)
+const formatActivityTime = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMinutes < 1) return 'Baru saja';
+  if (diffMinutes < 60) return `${diffMinutes} menit yang lalu`;
+  if (diffHours < 24) return `${diffHours} jam yang lalu`;
+  if (diffDays < 7) return `${diffDays} hari yang lalu`;
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+};
+
+const getActivityMessage = (activity) => {
+  if (!activity) return '';
+  if (activity.message) return activity.message;
+  const actionMap = { created: 'membuat', updated: 'memperbarui', deleted: 'menghapus', restored: 'memulihkan' };
+  const modelMap = { Project: 'proyek', Task: 'tugas', Comment: 'komentar', ProjectUser: 'anggota proyek' };
+  const action = actionMap[activity.action] || activity.action;
+  const model = modelMap[activity.model_type] || activity.model_type;
+  return `${action} ${model}`;
+};
+
+const getActivityTypeLabel = (type) => {
+  const typeMap = { audit: 'Audit', task_activity: 'Tugas', comment: 'Komentar' };
+  return typeMap[type] || type;
+};
+
+// Render activity object to human-readable sentence
+const renderActivityText = (a) => {
+  if (!a || typeof a !== 'object') return String(a || '');
+
+  // Handle comment type
+  if (a.type === 'comment') {
+    const user = a.user?.name || 'Seseorang';
+    const task = a.task?.title || 'tugas';
+    const project = a.project?.name ? `di proyek ${a.project.name}` : '';
+    const comment = a.comment ? `: "${a.comment}"` : '';
+    return `${user} mengomentari tugas "${task}" ${project}${comment}`.trim();
+  }
+
+  // Fallback generic representation
+  if (a.description) return a.description;
+  return JSON.stringify(a);
 };
 
 // Navigation
@@ -796,6 +884,40 @@ const toggleProjectMenu = (projectId) => {
   margin: 0 0 4px 0;
   line-height: 1.4;
 }
+
+.activity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.activity-user {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.activity-time {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.activity-message {
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.activity-action { font-weight: 500; }
+.activity-target { color: var(--color-primary-600); font-weight: 500; }
+.activity-comment { background: var(--color-background-soft); border: 1px solid var(--color-border); border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 13px; color: var(--color-muted); font-style: italic; }
+
+.activity-type-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.activity-type-badge.audit { background: #e3f2fd; color: #1976d2; }
+.activity-type-badge.task_activity { background: #fff3e0; color: #f57c00; }
+.activity-type-badge.comment { background: #e8f5e8; color: #2e7d32; }
 
 .activity-time {
   font-size: 12px;

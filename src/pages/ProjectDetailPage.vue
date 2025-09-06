@@ -55,7 +55,7 @@
           @click="activeView = 'board'"
         >
           <font-awesome-icon icon="table-columns" size="sm" />
-          Papan
+          Kanban
         </button>
         <button 
           :class="['nav-item', { active: activeView === 'list' }]"
@@ -105,6 +105,7 @@
               class="board-column"
             >
               <div class="column-header">
+                <div class="status-indicator" :style="{ backgroundColor: status.color }"></div>
                 <h3 class="column-title">{{ status.name }}</h3>
                 <span class="column-count">{{ getTasksByStatus(status.id).length }}</span>
                 <button class="btn-icon" @click="showCreateTaskModal = true">
@@ -120,9 +121,9 @@
                 >
                   <div class="task-header">
                     <h4 class="task-title">{{ task.title }}</h4>
-                    <div class="task-priority" :class="task.priority?.toLowerCase()">
+          <div class="task-priority" :class="(task.priority && task.priority.name) ? task.priority.name.toLowerCase() : ''">
                       <font-awesome-icon 
-                        :icon="getPriorityIcon(task.priority)" 
+            :icon="getPriorityIcon(task.priority)" 
                         size="sm" 
                       />
                     </div>
@@ -222,17 +223,17 @@
                 </div>
               </div>
               <div class="task-col task-col-status">
-                <span class="status-badge" :class="task.status?.name.toLowerCase()">
-                  {{ task.status?.name }}
+                <span class="status-badge" :class="(task.status && task.status.name) ? task.status.name.toLowerCase() : ''">
+                  {{ task.status?.name || '' }}
                 </span>
               </div>
               <div class="task-col task-col-priority">
-                <div class="priority-badge" :class="task.priority?.name.toLowerCase()">
+                <div class="priority-badge" :class="(task.priority && task.priority.name) ? task.priority.name.toLowerCase() : ''">
                   <font-awesome-icon 
-                    :icon="getPriorityIcon(task.priority.name)" 
+                    :icon="getPriorityIcon(task.priority)" 
                     size="sm" 
                   />
-                  {{ task.priority.name }}
+                  {{ task.priority?.name || '' }}
                 </div>
               </div>
               <div class="task-col task-col-assignee">
@@ -279,46 +280,44 @@
           </div>
         </div>
 
-        <!-- Members View -->
         <div v-if="activeView === 'members'" class="members-view">
+
           <div class="members-header">
-            <h3>Daftar Anggota ({{ project.members?.length || 0 }})</h3>
+            <h3>Anggota</h3>
             <div>
-              <button class="btn btn-secondary" @click="showInviteModal = true">
-                <font-awesome-icon icon="user-plus" size="sm" />
-                Undang Anggota
-              </button>
+              <button class="btn btn-primary" @click="showInviteModal = true">Undang Anggota</button>
             </div>
           </div>
 
           <div class="members-list">
-            <div v-if="!project.members || project.members.length === 0" class="empty-members">
-              <p>Belum ada anggota di proyek ini.</p>
+            <div v-if="!projectMembers.length" class="empty-activities">
+              <p>Tidak ada anggota pada proyek ini.</p>
             </div>
 
-            <div v-else>
-              <div v-for="member in project.members" :key="member.id" class="member-item">
-                <div class="member-info">
-                  <div class="member-avatar">
-                    <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
-                    <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
-                  </div>
-                  <div class="member-meta">
-                    <div class="member-name">{{ member.user_name }}</div>
-                    <div class="member-email">{{ member.user_email }}</div>
+            <div v-for="member in projectMembers" :key="member.id" class="member-item">
+              <div class="member-info">
+                <div class="member-avatar">
+                  <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
+                  <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
+                </div>
+
+                <div class="member-meta">
+                  <div class="member-name">{{ member.name }}</div>
+                  <div class="member-email">{{ member.email }}</div>
+                  <div class="member-role" v-if="getMemberRole(member)">
+                    <span class="role-badge">{{ getMemberRole(member) }}</span>
                   </div>
                 </div>
-                <div class="member-actions">
-                  <button
-                    class="btn btn-secondary"
-                    :disabled="member.id === authStore.user?.id"
-                    @click="removeMember(member)"
-                    title="Hapus anggota dari proyek"
-                  >
-                    <font-awesome-icon icon="user-slash" size="sm" />
-                    Hapus
-                  </button>
-                </div>
+              </div>
+
+              <div class="member-actions">
+                <button
+                  class="btn btn-danger"
+                  @click="removeMember(member)"
+                  :disabled="member.id === authStore.user?.id"
+                  title="Hapus anggota">
+                  Hapus
+                </button>
               </div>
             </div>
           </div>
@@ -420,12 +419,7 @@ const workspace = ref(null);
 const tasks = ref([]);
 const activities = ref([]);
 const loadingActivities = ref(false);
-const taskStatuses = ref([
-  { id: 'todo', name: 'To Do' },
-  { id: 'in-progress', name: 'Sedang Berlangsung' },
-  { id: 'review', name: 'Tinjau' },
-  { id: 'done', name: 'Selesai' }
-]);
+const taskStatuses = ref([]);
 const activeView = ref('board');
 const showInviteModal = ref(false);
 const showCreateTaskModal = ref(false);
@@ -438,6 +432,7 @@ const filterPriority = ref('');
 // Load data on mount
 onMounted(async () => {
   await loadProject();
+  await loadTaskStatuses();
   if (activeView.value === 'activities') {
     await loadActivities();
   }
@@ -484,6 +479,17 @@ const loadTasks = async (projectSlug) => {
   }
 };
 
+// Load task statuses
+const loadTaskStatuses = async () => {
+  try {
+    const projectSlug = route.params.projectSlug;
+    const response = await projectService.getProjectStatus(projectSlug);
+    taskStatuses.value = response.data.data || [];
+  } catch (error) {
+    console.error('Error loading task statuses:', error);
+  }
+};
+
 const refreshProject = async () => {
   try {
     const projectSlug = route.params.projectSlug;
@@ -514,7 +520,7 @@ const filteredTasks = computed(() => {
   let filtered = tasks.value;
   
   if (filterStatus.value) {
-    filtered = filtered.filter(task => task.status === filterStatus.value);
+    filtered = filtered.filter(task => task.status_id === filterStatus.value || task.status?.id === filterStatus.value);
   }
   
   if (filterAssignee.value) {
@@ -524,7 +530,10 @@ const filteredTasks = computed(() => {
   }
   
   if (filterPriority.value) {
-    filtered = filtered.filter(task => task.priority === filterPriority.value);
+    filtered = filtered.filter(task => {
+      const p = (task.priority?.name || task.priority || '').toString().toLowerCase();
+      return p === filterPriority.value.toString().toLowerCase();
+    });
   }
   
   return filtered;
@@ -532,7 +541,7 @@ const filteredTasks = computed(() => {
 
 // Helper functions
 const getTasksByStatus = (statusId) => {
-  return tasks.value.filter(task => task.status === statusId);
+  return tasks.value.filter(task => task.status_id === statusId || task.status?.id === statusId);
 };
 
 const getMemberInitials = (name) => {
@@ -546,7 +555,9 @@ const getPriorityIcon = (priority) => {
     high: 'arrow-up',
     urgent: 'exclamation'
   };
-  return icons[priority?.toLowerCase()] || 'minus';
+  // priority may be an object { name } or a string. Normalize safely.
+  const key = (priority?.name || priority || '').toString().toLowerCase();
+  return icons[key] || 'minus';
 };
 
 const isOverdue = (dueDate) => {
@@ -652,6 +663,41 @@ const removeMember = async (member) => {
     console.error('Error removing member:', error);
     errorToast('Gagal menghapus anggota');
   }
+};
+
+// Normalized project members computed (handles several API shapes)
+const projectMembers = computed(() => {
+  if (!project.value) return [];
+  // common shapes: project.members (array of {id, name, email, avatar, role})
+  // or project.users with pivot {role}
+  const members = project.value.members || project.value.users || [];
+
+  return members.map(m => {
+    // m may be a 'user' object or a pivot wrapper
+    const id = m.id ?? m.user_id ?? m.user?.id;
+    const name = m.name ?? m.user_name ?? m.user?.name ?? m.user?.full_name;
+    const email = m.email ?? m.user_email ?? m.user?.email;
+    const avatar = m.avatar ?? m.user?.avatar;
+    // role may be on pivot (m.pivot.role) or m.role or m.project_role
+    const role = m.role ?? m.pivot?.role ?? m.project_role ?? m.permission;
+
+    return { id, name, email, avatar, role };
+  }).filter(x => x && x.id);
+});
+
+// Return a readable role label for a member
+const getMemberRole = (member) => {
+  if (!member) return '';
+  const r = member.role || '';
+  if (!r) return '';
+  // common roles mapping
+  const map = {
+    owner: 'Pemilik',
+    admin: 'Admin',
+    member: 'Anggota',
+    manager: 'Manajer'
+  };
+  return map[r.toString().toLowerCase()] || r;
 };
 </script>
 
@@ -842,6 +888,13 @@ const removeMember = async (member) => {
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.status-indicator {
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .column-title {
@@ -1266,6 +1319,20 @@ const removeMember = async (member) => {
   color: var(--color-muted);
 }
 
+.member-role {
+  margin-top: 6px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--color-border);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .member-actions .btn[disabled] {
   opacity: 0.6;
   cursor: not-allowed;
@@ -1517,6 +1584,16 @@ const removeMember = async (member) => {
 
 .btn-secondary:hover {
   background: var(--color-border);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c82333;
   transform: translateY(-1px);
 }
 

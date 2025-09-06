@@ -82,6 +82,7 @@ import {
   faRefresh,
   faColumns,
   faStar,
+  faUserSlash,
   faEllipsisH
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -169,5 +170,6 @@ library.add(
   faRefresh,
   faColumns,
   faStar,
+  faUserSlash,
   faEllipsisH
 );

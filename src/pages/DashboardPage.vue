@@ -409,15 +409,15 @@
               <div class="workspace-stats">
                 <div class="stat-item">
                   <font-awesome-icon icon="folder" />
-                  <span>{{ workspace.projects_count || 0 }} Proyek</span>
+                  <span>{{ workspace.project_count || 0 }} Proyek</span>
                 </div>
                 <div class="stat-item">
                   <font-awesome-icon icon="users" />
-                  <span>{{ workspace.members_count || 0 }} Anggota</span>
+                  <span>{{ workspace.member_count || 0 }} Anggota</span>
                 </div>
                 <div class="stat-item">
                   <font-awesome-icon icon="tasks" />
-                  <span>{{ workspace.tasks_count || 0 }} Tugas</span>
+                  <span>{{ workspace.task_count || 0 }} Tugas</span>
                 </div>
               </div>
 
