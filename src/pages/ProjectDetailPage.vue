@@ -584,6 +584,7 @@ const filteredTasks = computed(() => {
 
 // Helper functions
 const getTasksByStatus = (statusId) => {
+  console.log(tasks.value);
   return tasks.value.filter(task => task.status_id === statusId || task.status?.id === statusId);
 };
 
