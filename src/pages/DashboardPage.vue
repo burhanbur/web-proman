@@ -35,6 +35,7 @@
             <div class="filter-dropdown">
               <select v-model="selectedTaskFilter" @change="onFilterChange" class="filter-select">
                 <option value="all">Semua Tugas</option>
+                <option value="assigned-to-me">Ditugaskan kepada Saya</option>
                 <optgroup v-if="workspaces.length > 0" label="Workspace">
                   <option v-for="workspace in workspaces" :key="workspace.id" :value="`workspace-${workspace.id}`">
                     {{ workspace.name }}
@@ -863,6 +864,8 @@ const loadTasks = async (filterValue = null) => {
 
   if (filter === 'all') {
       // no extra params
+    } else if (filter === 'assigned-to-me') {
+      params.assigned_to_me = true;
     } else if (filter.startsWith('workspace-')) {
       params.workspace = parseInt(filter.split('-')[1]);
     } else if (filter.startsWith('project-')) {
@@ -925,7 +928,10 @@ const loadListTasks = async () => {
     if (listFilter instanceof Event) listFilter = null;
     let fetchAllForFilter = false;
     if (typeof listFilter === 'string') {
-      if (listFilter.startsWith('workspace-')) {
+      if (listFilter === 'assigned-to-me') {
+        params.assigned_to_me = true;
+        fetchAllForFilter = true;
+      } else if (listFilter.startsWith('workspace-')) {
         params.workspace = parseInt(listFilter.split('-')[1]);
         // to ensure correct filtering in list view, fetch full dataset and filter client-side
         fetchAllForFilter = true;
@@ -995,6 +1001,14 @@ const loadListTasks = async () => {
       // If we fetched full dataset for client-side filter, apply filter and recalc meta
       if (fetchAllForFilter) {
         let filtered = listTasks.value.filter(t => {
+          if (params.assigned_to_me) {
+            const currentUserId = authStore.user?.id;
+            if (!currentUserId) return false;
+            const isAssignedToMe = t.assignees?.some(assignee => 
+              assignee.user_id == currentUserId || assignee.id == currentUserId
+            );
+            if (!isAssignedToMe) return false;
+          }
           if (params.workspace) {
             return t.workspace_id == params.workspace;
           }
@@ -1058,6 +1072,14 @@ const loadListTasks = async () => {
       if (fetchAllForFilter) {
         // apply client-side filter and recalc meta
         let filtered = listTasks.value.filter(t => {
+          if (params.assigned_to_me) {
+            const currentUserId = authStore.user?.id;
+            if (!currentUserId) return false;
+            const isAssignedToMe = t.assignees?.some(assignee => 
+              assignee.user_id == currentUserId || assignee.id == currentUserId
+            );
+            if (!isAssignedToMe) return false;
+          }
           if (params.workspace) return t.workspace_id == params.workspace;
           if (params.project) {
             const pid = t.project?.project_id || t.project?.id || null;
@@ -1107,6 +1129,14 @@ const loadListTasks = async () => {
       // apply filter client-side if requested
       if (fetchAllForFilter) {
         let filtered = listTasks.value.filter(t => {
+          if (params.assigned_to_me) {
+            const currentUserId = authStore.user?.id;
+            if (!currentUserId) return false;
+            const isAssignedToMe = t.assignees?.some(assignee => 
+              assignee.user_id == currentUserId || assignee.id == currentUserId
+            );
+            if (!isAssignedToMe) return false;
+          }
           if (params.workspace) return t.workspace_id == params.workspace;
           if (params.project) {
             const pid = t.project?.project_id || t.project?.id || null;
@@ -1220,9 +1250,12 @@ const getTasksByPriority = (priorityId) => {
   const filter = selectedTaskFilter.value;
   let workspaceFilterId = null;
   let projectFilterId = null;
+  let assignedToMe = false;
 
   if (typeof filter === 'string') {
-    if (filter.startsWith('workspace-')) {
+    if (filter === 'assigned-to-me') {
+      assignedToMe = true;
+    } else if (filter.startsWith('workspace-')) {
       workspaceFilterId = parseInt(filter.split('-')[1]);
     } else if (filter.startsWith('project-')) {
       projectFilterId = parseInt(filter.split('-')[1]);
@@ -1230,6 +1263,16 @@ const getTasksByPriority = (priorityId) => {
   }
 
   return allTasks.value.filter(task => {
+    // apply assigned to me filtering if active
+    if (assignedToMe) {
+      const currentUserId = authStore.user?.id;
+      if (!currentUserId) return false;
+      const isAssignedToMe = task.assignees?.some(assignee => 
+        assignee.user_id == currentUserId || assignee.id == currentUserId
+      );
+      if (!isAssignedToMe) return false;
+    }
+
     // apply workspace/project filtering if active
     if (workspaceFilterId && task.workspace_id != workspaceFilterId) return false;
     if (projectFilterId) {
@@ -1316,8 +1359,21 @@ const getMemberInitials = (name) => {
 };
 
 const getUserRole = (workspace) => {
-  // This would come from the workspace data
-  return workspace.user_role || 'Anggota';
+  console.log(workspace);
+  // Get current user ID from auth store
+  const currentUserId = authStore.user?.id;
+  
+  if (!currentUserId || !workspace.members) {
+    return 'Anggota';
+  }
+  
+  // Find the current user in workspace members array
+  const userMember = workspace.members.find(member => 
+    member.user_id == currentUserId || member.id == currentUserId
+  );
+  
+  // Return the role if found, otherwise default to 'Anggota'
+  return userMember?.role || 'Anggota';
 };
 
 const getWorkspaceName = (workspaceId) => {
