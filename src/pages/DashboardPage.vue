@@ -552,7 +552,7 @@
                         <font-awesome-icon icon="tasks" />
                       </div>
                       <div class="stat-content">
-                        <span class="stat-number">{{ project.tasks_count || 0 }}</span>
+                        <span class="stat-number">{{ getProjectTotalTasks(project) }}</span>
                         <span class="stat-label">Total Tugas</span>
                       </div>
                     </div>
@@ -561,7 +561,7 @@
                         <font-awesome-icon icon="check-circle" />
                       </div>
                       <div class="stat-content">
-                        <span class="stat-number">{{ project.completed_tasks_count || 0 }}</span>
+                        <span class="stat-number">{{ getProjectCompletedTasks(project) }}</span>
                         <span class="stat-label">Selesai</span>
                       </div>
                     </div>
@@ -1395,9 +1395,29 @@ const filterProjects = () => {
   // computed `filteredProjects` will react automatically
 };
 
+const getProjectTotalTasks = (project) => {
+  if (!project) return 0;
+  // prefer API-provided aggregated field
+  if (project.tasks_count !== undefined && project.tasks_count !== null) return project.tasks_count;
+  // fallback: sum of completed + incomplete + cancelled if available
+  if (project.tasks_completed_count !== undefined && project.tasks_incomplete_count !== undefined) {
+    const cancelled = project.tasks_cancelled_count || 0;
+    return project.tasks_completed_count + project.tasks_incomplete_count + cancelled;
+  }
+  return 0;
+};
+
+const getProjectCompletedTasks = (project) => {
+  if (!project) return 0;
+  if (project.tasks_completed_count !== undefined && project.tasks_completed_count !== null) return project.tasks_completed_count;
+  // fallback: try legacy field
+  if (project.completed_tasks_count !== undefined && project.completed_tasks_count !== null) return project.completed_tasks_count;
+  return 0;
+};
+
 const calculateProgress = (project) => {
-  const total = project.tasks_count || 0;
-  const completed = project.completed_tasks_count || 0;
+  const total = getProjectTotalTasks(project) || 0;
+  const completed = getProjectCompletedTasks(project) || 0;
   return total > 0 ? Math.round((completed / total) * 100) : 0;
 };
 

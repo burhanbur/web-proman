@@ -36,17 +36,38 @@
                   <font-awesome-icon icon="users" size="sm" />
                       {{ project.members?.length || 0 }} anggota
                 </span>
+                <!-- (Task summary moved to header actions for better layout) -->
+              </div>
+              <!-- summary moved to header actions (right side) -->
+            </div>
+          </div>
+        </div>
+        <div class="project-actions header-actions">
+          <div class="summary-cta">
+            <div class="task-summary header-right" role="status" aria-label="Ringkasan tugas proyek">
+              <div class="task-summary-top">
+                <div class="summary-left">
+                  <div class="summary-number">{{ tasksCompleted }} / {{ tasksTotal }}</div>
+                  <div class="summary-label">Tugas Selesai</div>
+                </div>
+                <div class="summary-percent">
+                  <div class="percent">{{ tasksCompletedPercent }}%</div>
+                </div>
+              </div>
+              <div class="progress-bar" aria-hidden>
+                <div class="progress-fill" :style="{ width: `${tasksCompletedPercent}%` }"></div>
+              </div>
+              <div class="summary-breakdown">
+                <span class="badge completed">Selesai: {{ tasksCompleted }}</span>
+                <span class="badge incomplete">Belum: {{ tasksIncomplete }}</span>
+                <span class="badge cancelled">Dibatalkan: {{ tasksCancelled }}</span>
               </div>
             </div>
           </div>
         </div>
-        <div class="project-actions">
-          <button class="btn btn-primary" @click="showCreateTaskModal = true">
-            <font-awesome-icon icon="plus" size="sm" />
-            Tugas Baru
-          </button>
-        </div>
       </div>
+
+  <!-- (Removed centered summary; inline summary will appear in project-meta) -->
 
       <!-- Project Navigation -->
       <div class="project-nav">
@@ -221,6 +242,12 @@
                 <option value="urgent">Mendesak</option>
               </select>
             </div>
+            <div class="list-actions">
+              <button class="btn btn-primary" @click="showCreateTaskModal = true">
+                <font-awesome-icon icon="plus" size="sm" />
+                Tugas Baru
+              </button>
+            </div>
           </div>
           <div class="task-list">
             <div class="task-list-header">
@@ -315,7 +342,10 @@
           <div class="members-header">
             <h3>Anggota</h3>
             <div>
-              <button class="btn btn-primary" @click="showInviteModal = true">Undang Anggota</button>
+              <button class="btn btn-primary" @click="showInviteModal = true">
+                <font-awesome-icon icon="plus" />
+                Undang Anggota
+              </button>
             </div>
           </div>
 
@@ -1029,6 +1059,58 @@ const projectMembers = computed(() => {
   }).filter(x => x && x.id);
 });
 
+// Task summary computed values (prefer live `tasks` array; fall back to project counts)
+const getStatusForTask = (task) => {
+  if (!task) return null;
+  if (task.status) return task.status;
+  const id = task.status_id ?? task.status?.id;
+  return taskStatuses.value.find(s => s.id === id) || null;
+};
+
+const tasksTotal = computed(() => {
+  if (tasks.value && tasks.value.length) return tasks.value.length;
+  if (!project.value) return 0;
+  if (project.value.tasks_count != null) return project.value.tasks_count;
+  const completed = Number(project.value.tasks_completed_count || 0);
+  const incomplete = Number(project.value.tasks_incomplete_count || 0);
+  const cancelled = Number(project.value.tasks_cancelled_count || 0);
+  return completed + incomplete + cancelled;
+});
+
+const tasksCompleted = computed(() => {
+  if (tasks.value && tasks.value.length) {
+    return tasks.value.filter(t => {
+      const s = getStatusForTask(t);
+      return !!s?.is_completed;
+    }).length;
+  }
+  return Number(project.value?.tasks_completed_count || 0);
+});
+
+const tasksCancelled = computed(() => {
+  if (tasks.value && tasks.value.length) {
+    return tasks.value.filter(t => {
+      const s = getStatusForTask(t);
+      return !!s?.is_cancelled;
+    }).length;
+  }
+  return Number(project.value?.tasks_cancelled_count || 0);
+});
+
+const tasksIncomplete = computed(() => {
+  const total = tasksTotal.value || 0;
+  const completed = tasksCompleted.value || 0;
+  const cancelled = tasksCancelled.value || 0;
+  if (tasks.value && tasks.value.length) return total - completed - cancelled;
+  return Number(project.value?.tasks_incomplete_count || Math.max(0, total - completed - cancelled));
+});
+
+const tasksCompletedPercent = computed(() => {
+  const total = tasksTotal.value || 0;
+  if (total === 0) return 0;
+  return Math.round((tasksCompleted.value / total) * 100);
+});
+
 // Return a readable role label for a member
 const getMemberRole = (member) => {
   if (!member) return '';
@@ -1079,7 +1161,7 @@ const getMemberRole = (member) => {
 /* Project Header */
 .project-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
   padding: 24px 0;
@@ -1162,10 +1244,159 @@ const getMemberRole = (member) => {
   color: var(--color-primary-500);
 }
 
+/* Task summary card */
+.task-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* match task card styling so theme colors are consistent */
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  padding: 12px 16px;
+  border-radius: 8px;
+  min-width: 200px;
+}
+.task-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.summary-left {
+  display: flex;
+  flex-direction: column;
+}
+.summary-number {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--color-text);
+}
+.summary-label {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.summary-percent .percent {
+  font-weight: 700;
+  color: var(--color-primary-600);
+  font-size: 18px;
+}
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-primary-600, #6c5ce7));
+  border-radius: 999px;
+  transition: width 0.4s ease, box-shadow 0.25s ease;
+}
+.summary-breakdown {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+}
+.badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge.completed { background: rgba(34,197,94,0.12); color: #16a34a; }
+.badge.incomplete { background: rgba(250,204,21,0.12); color: #d97706; }
+.badge.cancelled { background: rgba(220,38,38,0.08); color: #dc2626; }
+
+/* Full width container under header */
+.task-summary.compact-left {
+  width: 360px;
+  background: var(--color-card-bg, linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)));
+  border: 1px solid var(--color-border-weak, rgba(255,255,255,0.02));
+  padding: 10px 12px;
+  margin-top: 12px;
+  border-radius: 10px;
+  box-shadow: var(--card-shadow, 0 8px 24px rgba(2,6,23,0.4));
+}
+
+@media (max-width: 1024px) {
+  .task-summary.compact-left {
+    width: 100%;
+  }
+}
+
 .project-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 320px;
+  justify-content: flex-end;
+}
+
+.project-actions .task-summary {
+  margin-right: 12px;
+  min-width: 260px;
+}
+
+.project-actions .actions-right {
+  display: flex;
+  align-items: center;
+}
+
+/* Responsive: stack summary above actions on small screens */
+@media (max-width: 820px) {
+  .project-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .project-actions {
+    margin-top: 12px;
+    min-width: auto;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .project-actions .task-summary {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .project-actions .actions-right {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+/* Header actions: right-side summary + CTA */
+.header-actions {
+  align-items: center;
+}
+
+.summary-cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-summary.header-right {
+  width: 320px;
+  background: var(--color-background);
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.btn-cta {
+  white-space: nowrap;
+  padding: 12px 18px;
+  border-radius: 10px;
+}
+
+@media (max-width: 1024px) {
+  .task-summary.header-right { display: none; }
 }
 
 /* Project Navigation */
@@ -1579,6 +1810,17 @@ const getMemberRole = (member) => {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.list-actions {
+  display: flex;
+  align-items: center;
 }
 
 .filter-select {

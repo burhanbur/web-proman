@@ -126,11 +126,15 @@
                   <div class="project-stats">
                     <span class="stat-item">
                       <font-awesome-icon icon="check-circle" size="sm" />
-                      {{ project.completed_tasks_count || 0 }} selesai
+                      {{ getCompletedCount(project) }} selesai
+                    </span>
+                    <span class="stat-item">
+                      <font-awesome-icon icon="ban" size="sm" />
+                      {{ getCancelledCount(project) }} dibatalkan
                     </span>
                     <span class="stat-item">
                       <font-awesome-icon icon="circle" size="sm" />
-                      {{ project.tasks_count || 0 }} tugas
+                      {{ getTotalCount(project) }} tugas
                     </span>
                   </div>
                   <div class="project-members">
@@ -349,9 +353,23 @@ const getMemberInitials = (name) => {
   return name?.split(' ').map(word => word[0]).join('').slice(0, 2).toUpperCase() || 'U';
 };
 
+// Robust helpers for project task counts and progress
+const getTotalCount = (project) => {
+  // Prefer common fields, support different naming coming from API
+  return project.tasks_count ?? project.total_tasks ?? project.tasksTotal ?? 0;
+};
+
+const getCompletedCount = (project) => {
+  return project.completed_tasks_count ?? project.tasks_completed_count ?? project.completed ?? 0;
+};
+
+const getCancelledCount = (project) => {
+  return project.tasks_cancelled_count ?? project.cancelled_tasks_count ?? project.cancelled ?? 0;
+};
+
 const calculateProgress = (project) => {
-  const total = project.tasks_count || 0;
-  const completed = project.completed_tasks_count || 0;
+  const total = getTotalCount(project) || 0;
+  const completed = getCompletedCount(project) || 0;
   return total > 0 ? Math.round((completed / total) * 100) : 0;
 };
 
