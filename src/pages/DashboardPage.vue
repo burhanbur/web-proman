@@ -7,7 +7,7 @@
         <p class="page-subtitle">Selamat datang di PRIMA - Kelola proyek dan aktivitas Anda</p>
       </div>
       <div class="header-actions">
-        <button class="btn btn-primary" @click="showCreateWorkspaceModal = true">
+  <button v-if="isSystemAdmin" class="btn btn-primary" @click="showCreateWorkspaceModal = true">
           <font-awesome-icon icon="plus" />
           Buat Workspace
         </button>
@@ -375,7 +375,7 @@
             </div>
             <h3>Belum ada workspace</h3>
             <p>Buat workspace pertama Anda untuk mulai mengelola proyek</p>
-            <button class="btn btn-primary" @click="showCreateWorkspaceModal = true">
+            <button v-if="isSystemAdmin" class="btn btn-primary" @click="showCreateWorkspaceModal = true">
               <font-awesome-icon icon="plus" />
               Buat Workspace Pertama
             </button>
@@ -669,6 +669,16 @@ import { errorToast, successToast } from '@/utils/toast';
 
 const router = useRouter();
 const authStore = useAuthStore();
+
+// Only system-level admins should be allowed to create workspaces
+const isSystemAdmin = computed(() => {
+  const role = authStore.user?.system_role;
+  if (!role) return false;
+  const code = String(role.code || '').toLowerCase();
+  const name = String(role.name || '').toLowerCase();
+  // Accept several common admin identifiers
+  return code === 'admin' || code === 'system_admin' || code.includes('admin') || name.includes('admin') || role.id === 1;
+});
 
 // Reactive data
 const loading = ref(true);
@@ -1359,7 +1369,6 @@ const getMemberInitials = (name) => {
 };
 
 const getUserRole = (workspace) => {
-  console.log(workspace);
   // Get current user ID from auth store
   const currentUserId = authStore.user?.id;
   

@@ -1705,7 +1705,7 @@ const deleteNote = async (noteId) => {
 
 .board-columns {
   display: flex;
-  gap: 24px;
+  gap: 8px;
   /* only horizontal scroll, let height be natural */
   overflow-x: auto;
   overflow-y: visible;
@@ -1720,7 +1720,7 @@ const deleteNote = async (noteId) => {
   .board-columns {
     /* ensure flex layout on desktop too */
     display: flex;
-    gap: 24px;
+    gap: 8px;
     overflow-x: auto;
     overflow-y: visible;
     padding-bottom: 12px;
