@@ -113,6 +113,13 @@
           <font-awesome-icon icon="clock" size="sm" />
           Aktivitas
         </button>
+        <button 
+          :class="['nav-item', { active: activeView === 'notes' }]"
+          @click="(activeView = 'notes', loadNotes(project.id))"
+        >
+          <font-awesome-icon icon="sticky-note" size="sm" />
+          Catatan
+        </button>
       </div>
 
       <!-- View Content -->
@@ -444,6 +451,55 @@
             </div>
           </div>
         </div>
+
+        <!-- Notes View -->
+        <div v-if="activeView === 'notes'" class="notes-view">
+          <div class="notes-container">
+            <div class="notes-header">
+              <h3>Catatan Proyek</h3>
+              <button class="btn btn-primary" @click="showCreateNoteModal = true" v-if="authStore.user">
+                <font-awesome-icon icon="plus" size="sm" />
+                Tambah Catatan
+              </button>
+            </div>
+
+            <div class="notes-list">
+              <div v-if="notes.length === 0" class="empty-state">
+                <font-awesome-icon icon="sticky-note" size="3x" class="empty-icon" />
+                <h3>Belum ada catatan</h3>
+                <p>Tambahkan catatan untuk berkomunikasi dengan tim Anda.</p>
+              </div>
+
+              <div v-else class="note-card" v-for="note in notes" :key="note.id">
+                <div class="note-header">
+                  <div class="note-author">
+                    <strong>{{ note.created_by?.name || note.created_by?.email || 'Pengguna' }}</strong>
+                    <span class="note-meta">• {{ formatDateTime(note.created_at) }}</span>
+                  </div>
+                  <div class="note-actions">
+                    <button v-if="authStore.user && authStore.user.id === note.created_by?.id" class="btn-icon" @click="deleteNote(note.id)">
+                      <font-awesome-icon icon="trash" size="sm" />
+                    </button>
+                  </div>
+                </div>
+
+                <div class="note-body">
+                  <p>{{ note.content }}</p>
+
+                  <div v-if="note.attachments && note.attachments.length" class="note-attachments">
+                    <h4>Lampiran ({{ note.attachments_count || note.attachments.length }})</h4>
+                    <ul>
+                      <li v-for="att in note.attachments" :key="att.attachment_id">
+                        <a :href="`/storage/${att.file_path}`" target="_blank" rel="noopener noreferrer">{{ att.original_filename }}</a>
+                        <small class="muted"> — {{ att.mime_type }} • {{ formatFileSize(att.file_size) }}</small>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -456,6 +512,83 @@
         Kembali ke Workspace
       </router-link>
     </div>
+
+    <!-- Create Note Modal -->
+    <div v-if="showCreateNoteModal" class="modal-overlay" @click="closeCreateNoteModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Tambah Catatan</h3>
+          <button class="btn-close" @click="closeCreateNoteModal">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="noteContent">Catatan</label>
+            <textarea 
+              id="noteContent"
+              v-model="newNoteContent" 
+              placeholder="Tulis catatan untuk anggota proyek..." 
+              rows="6"
+              class="form-control"
+            ></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>Lampiran</label>
+            <div 
+              class="file-upload-area"
+              :class="{ 'drag-over': isDragOver }"
+              @dragover.prevent="handleFileDragOver"
+              @dragleave.prevent="handleFileDragLeave"
+              @drop.prevent="handleFileDrop"
+            >
+              <input 
+                type="file" 
+                ref="fileInput" 
+                multiple 
+                @change="handleFileSelect"
+                class="file-input"
+                accept="*/*"
+              />
+              <div class="file-upload-button" @click="$refs.fileInput.click()">
+                <font-awesome-icon icon="paperclip" size="lg" />
+                <span>Pilih File</span>
+              </div>
+              <p class="file-upload-hint">Klik untuk memilih file atau drag & drop</p>
+            </div>
+            
+            <!-- Selected Files List -->
+            <div v-if="selectedFiles.length > 0" class="selected-files">
+              <h4>File Terpilih ({{ selectedFiles.length }})</h4>
+              <div class="file-list">
+                <div v-for="(file, index) in selectedFiles" :key="index" class="file-item">
+                  <div class="file-info">
+                    <font-awesome-icon icon="paperclip" size="sm" />
+                    <span class="file-name">{{ file.name }}</span>
+                    <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                  </div>
+                  <button class="btn-remove" @click="removeFile(index)">
+                    <font-awesome-icon icon="times" size="sm" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeCreateNoteModal">Batal</button>
+          <button 
+            class="btn btn-primary" 
+            :disabled="creatingNote || !newNoteContent.trim()" 
+            @click="createNoteWithAttachments"
+          >
+            <font-awesome-icon icon="paper-plane" size="sm" />
+            {{ creatingNote ? 'Menyimpan...' : 'Simpan Catatan' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -465,6 +598,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { projectService } from '@/api/services/projectService';
 import { taskService } from '@/api/services/taskService';
 import { workspaceService } from '@/api/services/workspaceService';
+import { noteService } from '@/api/services/noteService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
 
@@ -483,6 +617,12 @@ const taskStatuses = ref([]);
 const activeView = ref('board');
 const showInviteModal = ref(false);
 const showCreateTaskModal = ref(false);
+const notes = ref([]);
+const newNoteContent = ref('');
+const creatingNote = ref(false);
+const showCreateNoteModal = ref(false);
+const selectedFiles = ref([]);
+const isDragOver = ref(false);
 
 // Drag and drop state
 const isDragging = ref(false);
@@ -512,10 +652,13 @@ onMounted(async () => {
   loading.value = false;
 });
 
-// Watch for activeView changes to load activities when needed
+// Watch for activeView changes to load activities and notes when needed
 watch(activeView, async (newView) => {
   if (newView === 'activities' && activities.value.length === 0) {
     await loadActivities();
+  }
+  if (newView === 'notes' && notes.value.length === 0 && project.value) {
+    await loadNotes(project.value.id);
   }
 });
 
@@ -1124,6 +1267,120 @@ const getMemberRole = (member) => {
     manager: 'Manajer'
   };
   return map[r.toString().toLowerCase()] || r;
+};
+
+// Notes functions
+const loadNotes = async (projectId) => {
+  try {
+    const response = await noteService.list({ model_type: 'project', model_id: projectId });
+    notes.value = response.data.data || [];
+    console.log('Loaded notes:', notes.value);
+  } catch (error) {
+    console.error('Error loading notes:', error);
+  }
+};
+
+const formatDateTime = (dateString) => {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  if (isNaN(d)) return dateString;
+  const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+  return d.toLocaleDateString('id-ID', options).replace(',', '');
+};
+
+const formatFileSize = (size) => {
+  if (!size && size !== 0) return '';
+  const i = size === 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  return `${(size / Math.pow(1024, i)).toFixed( i === 0 ? 0 : 2 )} ${sizes[i]}`;
+};
+
+// Modal functions
+const closeCreateNoteModal = () => {
+  showCreateNoteModal.value = false;
+  newNoteContent.value = '';
+  selectedFiles.value = [];
+  isDragOver.value = false;
+};
+
+// File handling functions
+const handleFileSelect = (event) => {
+  const files = Array.from(event.target.files);
+  selectedFiles.value = [...selectedFiles.value, ...files];
+};
+
+const removeFile = (index) => {
+  selectedFiles.value.splice(index, 1);
+};
+
+// File drag and drop functions
+const handleFileDragOver = (event) => {
+  event.preventDefault();
+  isDragOver.value = true;
+};
+
+const handleFileDragLeave = (event) => {
+  event.preventDefault();
+  isDragOver.value = false;
+};
+
+const handleFileDrop = (event) => {
+  event.preventDefault();
+  isDragOver.value = false;
+  
+  const files = Array.from(event.dataTransfer.files);
+  selectedFiles.value = [...selectedFiles.value, ...files];
+};
+
+// Create note with attachments
+const createNoteWithAttachments = async () => {
+  if (!newNoteContent.value.trim()) return;
+  creatingNote.value = true;
+  
+  try {
+    const formData = new FormData();
+    formData.append('model_type', 'project');
+    formData.append('model_id', project.value.id);
+    formData.append('content', newNoteContent.value.trim());
+    
+    // Add files to FormData
+    selectedFiles.value.forEach((file, index) => {
+      formData.append(`attachments[${index}]`, file);
+    });
+    
+    const res = await noteService.create(formData);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Catatan berhasil dibuat');
+      // prepend new note to list if returned
+      const created = res.data.data || null;
+      if (created) notes.value.unshift(created);
+      else await loadNotes(project.value.id);
+      closeCreateNoteModal();
+    } else {
+      errorToast(res.data.message || 'Gagal membuat catatan');
+    }
+  } catch (error) {
+    console.error('Error creating note:', error);
+    errorToast('Terjadi kesalahan saat membuat catatan');
+  } finally {
+    creatingNote.value = false;
+  }
+};
+
+const deleteNote = async (noteId) => {
+  if (!confirm('Hapus catatan ini?')) return;
+  try {
+    const res = await noteService.remove(noteId);
+    if (res.data && res.data.success) {
+      notes.value = notes.value.filter(n => n.id !== noteId);
+      successToast(res.data.message || 'Catatan dihapus');
+    } else {
+      errorToast(res.data.message || 'Gagal menghapus catatan');
+    }
+  } catch (error) {
+    console.error('Error deleting note:', error);
+    errorToast('Terjadi kesalahan saat menghapus catatan');
+  }
 };
 </script>
 
@@ -2518,6 +2775,309 @@ const getMemberRole = (member) => {
   .board-columns {
     scroll-behavior: auto;
   }
+}
+
+/* Notes View */
+.notes-view {
+  min-height: 400px;
+}
+
+.notes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.notes-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.note-card {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.note-author { 
+  color: var(--color-text); 
+}
+
+.note-meta { 
+  color: var(--color-muted); 
+  font-size: 13px; 
+  margin-left: 8px; 
+}
+
+.note-body p { 
+  margin: 0; 
+  color: var(--color-text); 
+}
+
+.note-attachments ul { 
+  list-style: none; 
+  padding: 0; 
+  margin: 8px 0 0 0; 
+}
+
+.note-attachments li { 
+  margin-bottom: 6px; 
+}
+
+.note-attachments a { 
+  color: var(--color-primary-600); 
+}
+
+.muted { 
+  color: var(--color-muted); 
+  font-size: 12px; 
+}
+
+/* Empty state for notes */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.empty-icon {
+  color: var(--color-muted);
+  margin-bottom: 24px;
+}
+
+.empty-state h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 8px 0;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: var(--color-muted);
+  margin: 0 0 24px 0;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background: var(--color-background);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-close:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--color-background);
+  color: var(--color-text);
+  resize: vertical;
+  transition: border-color 0.2s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* File upload styles */
+.file-upload-area {
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  background: var(--color-background-soft);
+  transition: all 0.2s ease;
+}
+
+.file-upload-area:hover {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+}
+
+.file-upload-area.drag-over {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-100);
+  transform: scale(1.02);
+}
+
+.file-input {
+  display: none;
+}
+
+.file-upload-button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--color-primary-500);
+  font-weight: 500;
+}
+
+.file-upload-button:hover {
+  color: var(--color-primary-600);
+}
+
+.file-upload-hint {
+  margin: 8px 0 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.selected-files {
+  margin-top: 16px;
+}
+
+.selected-files h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.file-name {
+  font-size: 14px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.file-size {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-remove:hover {
+  background: var(--color-border);
+  color: var(--color-text);
 }
 
 /* Dark mode support */

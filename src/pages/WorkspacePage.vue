@@ -79,6 +79,13 @@
             <font-awesome-icon icon="cog" size="sm" />
             Pengaturan
           </button>
+          <button 
+            :class="['nav-item', { active: activeTab === 'notes' }]"
+            @click="(activeTab = 'notes', loadNotes(workspaceId))"
+          >
+            <font-awesome-icon icon="sticky-note" size="sm" />
+            Catatan
+          </button>
         </div>
 
         <!-- Tab Content -->
@@ -247,6 +254,55 @@
               <!-- Settings form would go here -->
             </div>
           </div>
+
+          <!-- Notes Tab -->
+          <div v-if="activeTab === 'notes'" class="notes-tab">
+            <div class="notes-container">
+              <div class="notes-header">
+                <h3>Catatan Workspace</h3>
+                <button class="btn btn-primary" @click="showCreateNoteModal = true" v-if="authStore.user">
+                  <font-awesome-icon icon="plus" size="sm" />
+                  Tambah Catatan
+                </button>
+              </div>
+
+              <div class="notes-list">
+                <div v-if="notes.length === 0" class="empty-state">
+                  <font-awesome-icon icon="sticky-note" size="3x" class="empty-icon" />
+                  <h3>Belum ada catatan</h3>
+                  <p>Tambahkan catatan untuk berkomunikasi dengan tim Anda.</p>
+                </div>
+
+                <div v-else class="note-card" v-for="note in notes" :key="note.id">
+                  <div class="note-header">
+                    <div class="note-author">
+                      <strong>{{ note.created_by?.name || note.created_by?.email || 'Pengguna' }}</strong>
+                      <span class="note-meta">• {{ formatDateTime(note.created_at) }}</span>
+                    </div>
+                    <div class="note-actions">
+                      <button v-if="authStore.user && authStore.user.id === note.created_by?.id" class="btn-icon" @click="deleteNote(note.id)">
+                        <font-awesome-icon icon="trash" size="sm" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="note-body">
+                    <p>{{ note.content }}</p>
+
+                    <div v-if="note.attachments && note.attachments.length" class="note-attachments">
+                      <h4>Lampiran ({{ note.attachments_count || note.attachments.length }})</h4>
+                      <ul>
+                        <li v-for="att in note.attachments" :key="att.attachment_id">
+                          <a :href="`/storage/${att.file_path}`" target="_blank" rel="noopener noreferrer">{{ att.original_filename }}</a>
+                          <small class="muted"> — {{ att.mime_type }} • {{ formatFileSize(att.file_size) }}</small>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -258,6 +314,83 @@
       <p>Workspace yang Anda cari tidak ada atau Anda tidak memiliki akses.</p>
       <router-link to="/dashboard" class="btn btn-primary">Kembali ke Dashboard</router-link>
     </div>
+
+    <!-- Create Note Modal -->
+    <div v-if="showCreateNoteModal" class="modal-overlay" @click="closeCreateNoteModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Tambah Catatan</h3>
+          <button class="btn-close" @click="closeCreateNoteModal">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="noteContent">Catatan</label>
+            <textarea 
+              id="noteContent"
+              v-model="newNoteContent" 
+              placeholder="Tulis catatan untuk anggota workspace..." 
+              rows="6"
+              class="form-control"
+            ></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>Lampiran</label>
+            <div 
+              class="file-upload-area"
+              :class="{ 'drag-over': isDragOver }"
+              @dragover.prevent="handleDragOver"
+              @dragleave.prevent="handleDragLeave"
+              @drop.prevent="handleFileDrop"
+            >
+              <input 
+                type="file" 
+                ref="fileInput" 
+                multiple 
+                @change="handleFileSelect"
+                class="file-input"
+                accept="*/*"
+              />
+              <div class="file-upload-button" @click="$refs.fileInput.click()">
+                <font-awesome-icon icon="paperclip" size="lg" />
+                <span>Pilih File</span>
+              </div>
+              <p class="file-upload-hint">Klik untuk memilih file atau drag & drop</p>
+            </div>
+            
+            <!-- Selected Files List -->
+            <div v-if="selectedFiles.length > 0" class="selected-files">
+              <h4>File Terpilih ({{ selectedFiles.length }})</h4>
+              <div class="file-list">
+                <div v-for="(file, index) in selectedFiles" :key="index" class="file-item">
+                  <div class="file-info">
+                    <font-awesome-icon icon="paperclip" size="sm" />
+                    <span class="file-name">{{ file.name }}</span>
+                    <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                  </div>
+                  <button class="btn-remove" @click="removeFile(index)">
+                    <font-awesome-icon icon="times" size="sm" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeCreateNoteModal">Batal</button>
+          <button 
+            class="btn btn-primary" 
+            :disabled="creatingNote || !newNoteContent.trim()" 
+            @click="createNoteWithAttachments"
+          >
+            <font-awesome-icon icon="paper-plane" size="sm" />
+            {{ creatingNote ? 'Menyimpan...' : 'Simpan Catatan' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -265,7 +398,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { workspaceService } from '@/api/services/workspaceService';
-import { projectService } from '@/api/services/projectService';
+import { noteService } from '@/api/services/noteService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
 
@@ -275,6 +408,7 @@ const authStore = useAuthStore();
 
 // Reactive data
 const loading = ref(true);
+const workspaceId = ref(null);
 const workspace = ref(null);
 const projects = ref([]);
 const members = ref([]);
@@ -282,6 +416,12 @@ const activities = ref([]);
 const activeTab = ref('projects');
 const showInviteModal = ref(false);
 const showCreateProjectModal = ref(false);
+const notes = ref([]);
+const newNoteContent = ref('');
+const creatingNote = ref(false);
+const showCreateNoteModal = ref(false);
+const selectedFiles = ref([]);
+const isDragOver = ref(false);
 
 // Load data on mount
 onMounted(async () => {
@@ -297,7 +437,11 @@ const loadWorkspace = async () => {
     // Load workspace details
     const workspaceResponse = await workspaceService.get(workspaceSlug);
     workspace.value = workspaceResponse.data.data;
-    
+    workspaceId.value = workspace.value.id;
+
+    // Load notes
+    await loadNotes(workspaceId.value);
+
     // Load projects
     await loadProjects(workspaceSlug);
     
@@ -310,6 +454,139 @@ const loadWorkspace = async () => {
   } catch (error) {
     errorToast('Failed to load workspace');
     console.error('Error loading workspace:', error);
+  }
+};
+
+const loadNotes = async (workspaceId) => {
+  try {
+    const response = await noteService.list({ model_type: 'workspace', model_id: workspaceId });
+    notes.value = response.data.data || [];
+    console.log('Loaded notes:', notes.value);
+  } catch (error) {
+    console.error('Error loading notes:', error);
+  }
+};
+
+const createNote = async () => {
+  if (!newNoteContent.value.trim()) return;
+  creatingNote.value = true;
+  try {
+    const payload = {
+      model_type: 'workspace',
+      model_id: workspaceId.value,
+      content: newNoteContent.value.trim()
+    };
+    const res = await noteService.create(payload);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Catatan berhasil dibuat');
+      // prepend new note to list if returned
+      const created = res.data.data || null;
+      if (created) notes.value.unshift(created);
+      else await loadNotes(workspaceId.value);
+      newNoteContent.value = '';
+    } else {
+      errorToast(res.data.message || 'Gagal membuat catatan');
+    }
+  } catch (error) {
+    console.error('Error creating note:', error);
+    errorToast('Terjadi kesalahan saat membuat catatan');
+  } finally {
+    creatingNote.value = false;
+  }
+};
+
+const deleteNote = async (noteId) => {
+  if (!confirm('Hapus catatan ini?')) return;
+  try {
+    const res = await noteService.remove(noteId);
+    if (res.data && res.data.success) {
+      notes.value = notes.value.filter(n => n.id !== noteId);
+      successToast(res.data.message || 'Catatan dihapus');
+    } else {
+      errorToast(res.data.message || 'Gagal menghapus catatan');
+    }
+  } catch (error) {
+    console.error('Error deleting note:', error);
+    errorToast('Terjadi kesalahan saat menghapus catatan');
+  }
+};
+
+const formatFileSize = (size) => {
+  if (!size && size !== 0) return '';
+  const i = size === 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  return `${(size / Math.pow(1024, i)).toFixed( i === 0 ? 0 : 2 )} ${sizes[i]}`;
+};
+
+// Modal functions
+const closeCreateNoteModal = () => {
+  showCreateNoteModal.value = false;
+  newNoteContent.value = '';
+  selectedFiles.value = [];
+  isDragOver.value = false;
+};
+
+// File handling functions
+const handleFileSelect = (event) => {
+  const files = Array.from(event.target.files);
+  selectedFiles.value = [...selectedFiles.value, ...files];
+};
+
+const removeFile = (index) => {
+  selectedFiles.value.splice(index, 1);
+};
+
+// Drag and drop functions
+const handleDragOver = (event) => {
+  event.preventDefault();
+  isDragOver.value = true;
+};
+
+const handleDragLeave = (event) => {
+  event.preventDefault();
+  isDragOver.value = false;
+};
+
+const handleFileDrop = (event) => {
+  event.preventDefault();
+  isDragOver.value = false;
+  
+  const files = Array.from(event.dataTransfer.files);
+  selectedFiles.value = [...selectedFiles.value, ...files];
+};
+
+// Create note with attachments
+const createNoteWithAttachments = async () => {
+  if (!newNoteContent.value.trim()) return;
+  creatingNote.value = true;
+  
+  try {
+    const formData = new FormData();
+    formData.append('model_type', 'workspace');
+    formData.append('model_id', workspaceId.value);
+    formData.append('content', newNoteContent.value.trim());
+    
+    // Add files to FormData
+    selectedFiles.value.forEach((file, index) => {
+      formData.append(`attachments[${index}]`, file);
+    });
+    
+    const res = await noteService.create(formData);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Catatan berhasil dibuat');
+      // prepend new note to list if returned
+      const created = res.data.data || null;
+      if (created) notes.value.unshift(created);
+      else await loadNotes(workspaceId.value);
+      closeCreateNoteModal();
+    } else {
+      errorToast(res.data.message || 'Gagal membuat catatan');
+    }
+  } catch (error) {
+    console.error('Error creating note:', error);
+    errorToast('Terjadi kesalahan saat membuat catatan');
+  } finally {
+    creatingNote.value = false;
   }
 };
 
@@ -338,7 +615,6 @@ const loadActivities = async (workspaceSlug) => {
   try {
     const response = await workspaceService.getWorkspaceActivities(workspaceSlug);
     activities.value = response.data.data || [];
-    console.log('Activities loaded:', activities.value);
   } catch (error) {
     console.error('Error loading activities:', error);
   }
@@ -1116,6 +1392,249 @@ const toggleProjectMenu = (projectId) => {
     align-items: flex-start;
     gap: 8px;
   }
+}
+
+/* Notes styles */
+.notes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.notes-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.note-card {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.note-author { color: var(--color-text); }
+.note-meta { color: var(--color-muted); font-size: 13px; margin-left: 8px; }
+.note-body p { margin: 0; color: var(--color-text); }
+.note-attachments ul { list-style: none; padding: 0; margin: 8px 0 0 0; }
+.note-attachments li { margin-bottom: 6px; }
+.note-attachments a { color: var(--color-primary-600); }
+.muted { color: var(--color-muted); font-size: 12px; }
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background: var(--color-background);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-close:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--color-background);
+  color: var(--color-text);
+  resize: vertical;
+  transition: border-color 0.2s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* File upload styles */
+.file-upload-area {
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  background: var(--color-background-soft);
+  transition: all 0.2s ease;
+}
+
+.file-upload-area:hover {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+}
+
+.file-upload-area.drag-over {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-100);
+  transform: scale(1.02);
+}
+
+.file-input {
+  display: none;
+}
+
+.file-upload-button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--color-primary-500);
+  font-weight: 500;
+}
+
+.file-upload-button:hover {
+  color: var(--color-primary-600);
+}
+
+.file-upload-hint {
+  margin: 8px 0 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.selected-files {
+  margin-top: 16px;
+}
+
+.selected-files h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.file-name {
+  font-size: 14px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.file-size {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-remove:hover {
+  background: var(--color-border);
+  color: var(--color-text);
 }
 
 @media (max-width: 480px) {
