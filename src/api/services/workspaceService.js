@@ -11,8 +11,11 @@ export const workspaceService = {
     // Member management
     addMember: (slug, payload) => api.post(`/workspaces/${slug}/users`, payload),
     updateMember: (slug, payload) => api.put(`/workspaces/${slug}/users`, payload),
-    removeMember: (slug, payload) => api.delete(`/workspaces/${slug}/users`, payload),
+    // axios.delete takes config as the second argument; to send a request body use { data: payload }
+    removeMember: (slug, payload) => api.delete(`/workspaces/${slug}/users`, { data: payload }),
     
     // Get workspace activities
     getWorkspaceActivities: (slug, params = {}) => api.get(`/workspaces/${slug}/activities`, { params }),
+
+    getWorkspaceRoles: () => api.get('/workspace-roles'),
 };

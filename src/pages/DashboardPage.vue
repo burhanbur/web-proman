@@ -7,7 +7,7 @@
         <p class="page-subtitle">Selamat datang di PRIMA - Kelola proyek dan aktivitas Anda</p>
       </div>
       <div class="header-actions">
-  <button v-if="isSystemAdmin" class="btn btn-primary" @click="showCreateWorkspaceModal = true">
+        <button v-if="isSystemAdmin" class="btn btn-primary" @click="showCreateWorkspaceModal = true">
           <font-awesome-icon icon="plus" />
           Buat Workspace
         </button>
@@ -375,10 +375,10 @@
             </div>
             <h3>Belum ada workspace</h3>
             <p>Buat workspace pertama Anda untuk mulai mengelola proyek</p>
-            <button v-if="isSystemAdmin" class="btn btn-primary" @click="showCreateWorkspaceModal = true">
+            <!-- <button v-if="isSystemAdmin" class="btn btn-primary" @click="showCreateWorkspaceModal = true">
               <font-awesome-icon icon="plus" />
               Buat Workspace Pertama
-            </button>
+            </button> -->
           </div>
 
           <!-- Workspace Grid -->
@@ -652,7 +652,100 @@
       </div>
     </div>
 
-    <!-- Modals will be added here later -->
+    <!-- Create Workspace Modal -->
+    <div 
+      v-if="showCreateWorkspaceModal" 
+      class="modal-overlay"
+      @click="closeCreateWorkspaceModal"
+    >
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3 class="modal-title">
+            <font-awesome-icon icon="building" />
+            Buat Workspace Baru
+          </h3>
+          <button @click="closeCreateWorkspaceModal" class="modal-close-btn">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+
+        <form @submit.prevent="createWorkspace" class="modal-body">
+          <div class="form-group">
+            <label for="workspaceName" class="form-label">
+              Nama Workspace <span class="required">*</span>
+            </label>
+            <input 
+              id="workspaceName"
+              v-model="workspaceForm.name"
+              type="text"
+              class="form-input"
+              placeholder="Masukkan nama workspace"
+              required
+              maxlength="255"
+            />
+            <small class="form-help">Nama workspace akan digunakan sebagai identitas utama</small>
+          </div>
+
+          <div class="form-group">
+            <label for="workspaceDescription" class="form-label">
+              Deskripsi
+            </label>
+            <textarea 
+              id="workspaceDescription"
+              v-model="workspaceForm.description"
+              class="form-textarea"
+              rows="3"
+              placeholder="Jelaskan tujuan atau scope workspace ini (opsional)"
+            ></textarea>
+            <small class="form-help">Deskripsi membantu anggota tim memahami tujuan workspace</small>
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input 
+                  v-model="workspaceForm.is_public"
+                  type="checkbox"
+                  class="form-checkbox"
+                />
+                <span class="checkbox-custom"></span>
+                <div class="checkbox-content">
+                  <span class="checkbox-text">Workspace Publik</span>
+                  <small class="checkbox-help">Workspace dapat dilihat dan diakses oleh semua pengguna</small>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button 
+              type="button" 
+              @click="closeCreateWorkspaceModal" 
+              class="btn btn-secondary"
+              :disabled="createWorkspaceLoading"
+            >
+              Batal
+            </button>
+            <button 
+              type="submit" 
+              class="btn btn-primary"
+              :disabled="createWorkspaceLoading || !workspaceForm.name.trim()"
+            >
+              <font-awesome-icon 
+                v-if="createWorkspaceLoading" 
+                icon="spinner" 
+                spin 
+              />
+              <font-awesome-icon 
+                v-else 
+                icon="save" 
+              />
+              {{ createWorkspaceLoading ? 'Membuat...' : 'Buat Workspace' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -692,6 +785,15 @@ const recentTasks = ref([]);
 const showCreateWorkspaceModal = ref(false);
 const showCreateProjectModal = ref(false);
 const showCreateTaskModal = ref(false);
+
+// Workspace form data
+const workspaceForm = ref({
+  name: '',
+  description: '',
+  is_public: false,
+  is_active: true
+});
+const createWorkspaceLoading = ref(false);
 
 // View state
 const currentView = ref('kanban'); // 'kanban' or 'list'
@@ -740,12 +842,12 @@ const loadPriorities = async () => {
 // Load data on mount
 onMounted(async () => {
   await loadWorkspaces();
-  await loadAllProjects(); // Load all projects instead of workspace-specific
+  await loadAllProjects();
   await loadPriorities();
   await loadRecentActivities();
   await loadRecentTasks();
   await loadTasks();
-  await loadListTasks(); // Load list tasks for datatable
+  await loadListTasks();
   loading.value = false;
 });
 
@@ -1490,6 +1592,51 @@ const toggleWorkspaceMenu = (workspaceId) => {
 
 const toggleProjectMenu = (projectId) => {
   console.log('Toggle project menu:', projectId);
+};
+
+// Workspace modal functions
+const closeCreateWorkspaceModal = () => {
+  showCreateWorkspaceModal.value = false;
+  // Reset form
+  workspaceForm.value = {
+    name: '',
+    description: '',
+    is_public: false,
+    is_active: true
+  };
+};
+
+const createWorkspace = async () => {
+  if (!workspaceForm.value.name.trim()) {
+    errorToast('Nama workspace harus diisi');
+    return;
+  }
+
+  createWorkspaceLoading.value = true;
+  
+  try {
+    const payload = {
+      name: workspaceForm.value.name.trim(),
+      description: workspaceForm.value.description.trim() || null,
+      is_public: workspaceForm.value.is_public,
+      is_active: workspaceForm.value.is_active
+    };
+
+    const response = await workspaceService.create(payload);
+    
+    successToast('Workspace berhasil dibuat');
+    closeCreateWorkspaceModal();
+    
+    // Reload workspaces to show the new one
+    await loadWorkspaces();
+    
+  } catch (error) {
+    console.error('Error creating workspace:', error);
+    const message = error.response?.data?.message || 'Gagal membuat workspace';
+    errorToast(message);
+  } finally {
+    createWorkspaceLoading.value = false;
+  }
 };
 </script>
 
@@ -2883,23 +3030,43 @@ const toggleProjectMenu = (projectId) => {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 10px 20px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: 500;
+  font-size: 14px;
   text-decoration: none;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px; /* Minimum touch target size */
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn:active {
+  transform: translateY(1px);
 }
 
 .btn-primary {
   background: var(--color-primary-500);
   color: white;
+  box-shadow: 0 2px 4px rgba(23, 162, 184, 0.2);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: var(--color-primary-600);
+  box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
@@ -2908,22 +3075,26 @@ const toggleProjectMenu = (projectId) => {
   border: 1px solid var(--border-color);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background: var(--border-color);
+  border-color: var(--color-primary-300);
+  transform: translateY(-1px);
 }
 
 .btn-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
   color: var(--color-muted);
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn-icon:hover {
@@ -3467,6 +3638,436 @@ html.dark .list-point-badge {
   .tasks-table td {
     padding: 8px 10px;
     font-size: 13px;
+  }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+.modal-content {
+  background: var(--bg-0);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: modalSlideIn 0.3s ease-out;
+  position: relative;
+  margin: auto;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.modal-title svg {
+  color: var(--color-primary-500);
+}
+
+.modal-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation; /* Better touch interaction */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.modal-close-btn:hover {
+  background: var(--bg-1);
+  color: var(--text-color);
+}
+
+.modal-close-btn:active {
+  transform: scale(0.95);
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-1);
+  flex-shrink: 0;
+}
+
+.modal-footer .btn {
+  min-width: 120px;
+}
+
+.modal-footer .btn:first-child {
+  margin-right: auto;
+}
+
+/* Utility classes for responsive spacing */
+.spacing-xs { gap: 4px; }
+.spacing-sm { gap: 8px; }
+.spacing-md { gap: 12px; }
+.spacing-lg { gap: 16px; }
+.spacing-xl { gap: 20px; }
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+  margin-bottom: 6px;
+}
+
+.required {
+  color: var(--color-danger-500);
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  background: var(--bg-0);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--text-color);
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(23, 162, 184, 0.1);
+  transform: translateY(-1px);
+}
+
+.form-input:disabled,
+.form-textarea:disabled {
+  background: var(--bg-1);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+
+.form-help {
+  display: block;
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* Checkbox Styles */
+.checkbox-group {
+  margin: 0;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-color);
+  padding: 8px 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.checkbox-label:hover .checkbox-custom {
+  border-color: var(--color-primary-300);
+}
+
+.form-checkbox {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checkbox-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-0);
+  position: relative;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.form-checkbox:checked + .checkbox-custom {
+  background: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  transform: scale(1.05);
+}
+
+.form-checkbox:checked + .checkbox-custom::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  width: 6px;
+  height: 10px;
+  border: 2px solid white;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
+}
+
+.checkbox-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.checkbox-text {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.checkbox-help {
+  font-size: 12px;
+  color: var(--color-muted);
+  line-height: 1.4;
+}
+
+/* Dark mode adjustments for modal */
+html.dark .modal-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+html.dark .modal-content {
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Mobile responsiveness for modal */
+@media (max-width: 1024px) {
+  .modal-content {
+    max-width: 90%;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 12px;
+    align-items: flex-start;
+    padding-top: 60px;
+  }
+  
+  .modal-content {
+    max-width: 100%;
+    max-height: calc(100vh - 80px);
+    margin: 0;
+  }
+  
+  .modal-header {
+    padding: 20px 20px 16px;
+  }
+  
+  .modal-title {
+    font-size: 18px;
+  }
+  
+  .modal-body {
+    padding: 20px;
+  }
+  
+  .modal-footer {
+    padding: 12px 20px 20px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+  }
+  
+  .form-input,
+  .form-textarea {
+    font-size: 16px; /* Prevent zoom on iOS */
+    padding: 12px;
+  }
+  
+  .form-label {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 8px;
+    padding-top: 40px;
+  }
+  
+  .modal-content {
+    border-radius: 12px 12px 0 0;
+    max-height: calc(100vh - 50px);
+  }
+  
+  .modal-header {
+    padding: 16px 16px 12px;
+  }
+  
+  .modal-title {
+    font-size: 16px;
+    gap: 8px;
+  }
+  
+  .modal-body {
+    padding: 16px;
+  }
+  
+  .modal-footer {
+    padding: 12px 16px 16px;
+    gap: 10px;
+  }
+  
+  .form-group {
+    margin-bottom: 16px;
+  }
+  
+  .checkbox-label {
+    gap: 10px;
+  }
+  
+  .checkbox-content {
+    gap: 4px;
+  }
+}
+
+@media (max-width: 360px) {
+  .modal-overlay {
+    padding: 4px;
+    padding-top: 20px;
+  }
+  
+  .modal-content {
+    max-height: calc(100vh - 30px);
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .modal-header {
+    padding: 12px 12px 8px;
+  }
+  
+  .modal-title {
+    font-size: 15px;
+  }
+  
+  .modal-body {
+    padding: 12px;
+  }
+  
+  .modal-footer {
+    padding: 8px 12px 12px;
+  }
+  
+  .form-input,
+  .form-textarea {
+    padding: 10px;
+  }
+}
+
+/* Landscape orientation adjustments for tablets */
+@media (max-width: 1024px) and (orientation: landscape) {
+  .modal-overlay {
+    padding: 20px;
+    align-items: center;
+  }
+  
+  .modal-content {
+    max-height: 90vh;
+    max-width: 600px;
+  }
+}
+
+/* Portrait tablets */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+  .modal-content {
+    max-width: 80%;
+  }
+  
+  .modal-header,
+  .modal-body {
+    padding: 24px;
   }
 }
 </style>

@@ -38,7 +38,7 @@
             </div>
           </div>
           <div class="workspace-actions">
-            <button class="btn btn-secondary" @click="showInviteModal = true" v-show="activeTab === 'members'">
+            <button class="btn btn-secondary" @click="openInviteModal" v-show="activeTab === 'members'" :disabled="!canInviteMembers">
               <font-awesome-icon icon="user-plus" size="sm" />
               Undang Anggota
             </button>
@@ -96,10 +96,10 @@
               <font-awesome-icon icon="folder-open" size="3x" class="empty-icon" />
               <h3>Belum ada proyek</h3>
               <p>Buat proyek pertama Anda untuk memulai</p>
-              <button class="btn btn-primary" @click="showCreateProjectModal = true">
+              <!-- <button class="btn btn-primary" @click="showCreateProjectModal = true">
                 <font-awesome-icon icon="plus" size="sm" />
                 Buat Proyek
-              </button>
+              </button> -->
             </div>
             <div v-else class="project-grid">
               <div 
@@ -165,10 +165,22 @@
 
           <!-- Members Tab -->
           <div v-if="activeTab === 'members'" class="members-tab">
-            <div class="members-list">
+            <div v-if="members.length === 0" class="empty-state">
+              <font-awesome-icon icon="users" size="3x" class="empty-icon" />
+              <h3>Belum ada anggota terbaru</h3>
+              <p>Anggota akan muncul di sini ketika anggota ditambahkan pada workspace</p>
+              <div style="margin-top: 16px;">
+                <button class="btn btn-primary" @click="openInviteModal" v-if="canInviteMembers">
+                  <font-awesome-icon icon="user-plus" size="sm" />
+                  Undang Anggota
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="members-list">
               <div 
-                v-for="member in members" 
-                :key="member.id"
+                v-for="(member, i) in members" 
+                :key="getMemberKey(member) || i"
                 class="member-item"
               >
                 <div class="member-avatar">
@@ -185,9 +197,15 @@
                   </span>
                 </div>
                 <div class="member-actions">
-                  <button class="btn-icon">
-                    <font-awesome-icon icon="ellipsis-vertical" size="sm" />
-                  </button>
+                  <div class="member-actions-menu">
+                    <button class="btn-icon" title="Menu" @click.stop="toggleMemberMenu(getMemberKey(member) || i)">
+                      <font-awesome-icon icon="ellipsis-vertical" size="sm" />
+                    </button>
+                    <div v-if="menuOpenFor === (getMemberKey(member) || i)" class="member-menu-dropdown" @click.stop>
+                      <button class="dropdown-item" @click="openEditMemberModal(member)" v-if="canInviteMembers">Edit Peran</button>
+                      <button class="dropdown-item text-danger" @click="openRemoveMemberModal(member)" v-if="canInviteMembers">Hapus</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -252,6 +270,15 @@
               <h3>Pengaturan Workspace</h3>
               <p>Kelola preferensi dan konfigurasi workspace</p>
               <!-- Settings form would go here -->
+
+              <!-- Danger zone: delete workspace -->
+              <div class="settings-danger">
+                <h4>Hapus Workspace</h4>
+                <p class="muted">Menghapus workspace akan menghapus semua data terkait (proyek, tugas, anggota) secara permanen.</p>
+                <button class="btn btn-danger" @click="openDeleteWorkspaceModal" :disabled="!canDeleteWorkspace">
+                  <font-awesome-icon icon="trash" /> Hapus Workspace
+                </button>
+              </div>
             </div>
           </div>
 
@@ -391,6 +418,177 @@
         </div>
       </div>
     </div>
+
+    <!-- Invite Members Modal -->
+  <div v-if="showInviteModal" class="modal-overlay" @click="closeInviteModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Undang Anggota</h3>
+          <button class="btn-close" @click="closeInviteModal">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="inviteUser" class="form-label">Pilih Pengguna</label>
+            <select id="inviteUser" v-model="inviteUserId" class="form-input">
+              <option value="">-- Pilih Pengguna --</option>
+              <option 
+                v-for="u in users" 
+                :key="u.id || u.email" 
+                :value="u.id"
+                :disabled="isUserMember(u)"
+              >
+                {{ u.name }} — {{ u.email }}
+                <span v-if="isUserMember(u)"> (sudah anggota)</span>
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="inviteRole" class="form-label">Pilih Peran Workspace</label>
+            <select id="inviteRole" v-model.number="inviteRoleId" class="form-input">
+              <option value="">-- Pilih Peran --</option>
+              <option v-for="r in workspaceRoles" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+            <small class="muted">Peran akan disimpan di tabel workspace_users (workspace_role_id).</small>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeInviteModal" :disabled="inviting">Batal</button>
+          <button class="btn btn-primary" @click="sendInvite" :disabled="inviting || !inviteUserId || !inviteRoleId">
+            <font-awesome-icon v-if="inviting" icon="spinner" spin />
+            <font-awesome-icon v-else icon="paper-plane" />
+            {{ inviting ? 'Mengirim...' : 'Kirim Undangan' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Member Modal -->
+    <div v-if="showEditMemberModal" class="modal-overlay" @click="showEditMemberModal = false">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Edit Peran Anggota</h3>
+          <button class="btn-close" @click="showEditMemberModal = false"><font-awesome-icon icon="times" /></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Pengguna</label>
+            <div>{{ editMember?.name || editMember?.email || editMember?.user?.name }}</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Pilih Peran</label>
+            <select v-model.number="editMemberWorkspaceRoleId" class="form-input">
+              <option v-for="r in workspaceRoles" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showEditMemberModal = false">Batal</button>
+          <button class="btn btn-primary" @click="updateMemberRole" :disabled="updatingMember">Simpan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remove Member Modal -->
+    <div v-if="showRemoveMemberModal" class="modal-overlay" @click="showRemoveMemberModal = false">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Hapus Anggota</h3>
+          <button class="btn-close" @click="showRemoveMemberModal = false"><font-awesome-icon icon="times" /></button>
+        </div>
+        <div class="modal-body">
+          <p>Hapus anggota <strong>{{ removeMemberTarget?.name || removeMemberTarget?.email }}</strong> dari workspace ini?</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showRemoveMemberModal = false">Batal</button>
+          <button class="btn btn-danger" @click="confirmRemoveMember" :disabled="removingMember">Hapus</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Workspace Modal -->
+    <div v-if="showDeleteWorkspaceModal" class="modal-overlay" @click="closeDeleteWorkspaceModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Hapus Workspace</h3>
+          <button class="modal-close" @click="closeDeleteWorkspaceModal">
+            <font-awesome-icon icon="times" size="sm" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <p>Apakah Anda yakin ingin menghapus workspace <strong>{{ workspace.name }}</strong>? Tindakan ini tidak dapat dibatalkan dan akan menghapus secara permanen:</p>
+          <ul>
+            <li>Semua proyek dan tugas dalam workspace</li>
+            <li>Catatan dan lampiran workspace</li>
+            <li>Keanggotaan dan pengaturan workspace</li>
+            <li>Riwayat aktivitas workspace</li>
+          </ul>
+          
+          <div class="form-group">
+            <label class="form-label">Ketik "{{ deleteRequireMatch }}" untuk konfirmasi:</label>
+            <input 
+              v-model="deleteConfirmText" 
+              type="text" 
+              class="form-input"
+              :placeholder="deleteRequireMatch"
+            />
+          </div>
+
+          <div class="form-group">
+            <label
+              class="checkbox-option checkbox-inline"
+              :class="{ disabled: deleteLoading }"
+              aria-disabled="false"
+            >
+              <!-- visually-hidden native checkbox for form semantics and accessibility -->
+              <input
+                type="checkbox"
+                v-model="acknowledgeDelete"
+                class="sr-only"
+                :disabled="deleteLoading"
+                aria-label="Konfirmasi penghapusan workspace"
+              />
+
+              <!-- custom styled checkbox square with keyboard support -->
+              <span
+                class="custom-checkbox"
+                role="checkbox"
+                :aria-checked="acknowledgeDelete.toString()"
+                tabindex="0"
+                @keydown.space.prevent="acknowledgeDelete = !acknowledgeDelete"
+                @keydown.enter.prevent="acknowledgeDelete = !acknowledgeDelete"
+                @click.stop="acknowledgeDelete = !acknowledgeDelete"
+              >
+                <svg v-if="acknowledgeDelete" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M20 6L9 17L4 12" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+
+              <span class="checkbox-label">Saya memahami tindakan ini tidak dapat dibatalkan</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeDeleteWorkspaceModal" :disabled="deleteLoading">Batal</button>
+          <button 
+            class="btn btn-danger" 
+            :disabled="deleteLoading || deleteConfirmText.trim() !== String(deleteRequireMatch) || !acknowledgeDelete"
+            @click="confirmDeleteWorkspace"
+          >
+            <font-awesome-icon v-if="deleteLoading" icon="spinner" spin />
+            <font-awesome-icon v-else icon="trash" size="sm" />
+            {{ deleteLoading ? 'Menghapus...' : 'Hapus Workspace' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -422,6 +620,195 @@ const creatingNote = ref(false);
 const showCreateNoteModal = ref(false);
 const selectedFiles = ref([]);
 const isDragOver = ref(false);
+
+// Delete workspace state
+const showDeleteWorkspaceModal = ref(false);
+const deleteConfirmText = ref('');
+const deleteRequireMatch = ref(''); // will set to workspace.slug or workspace.name
+const deleteLoading = ref(false);
+const acknowledgeDelete = ref(false);
+
+const canDeleteWorkspace = computed(() => {
+  const user = authStore.user;
+  if (!user || !workspace.value) return false;
+  // Allow creator or system admin to delete
+  const isCreator = workspace.value.created_by === user.id || workspace.value.created_by?.id === user.id;
+  const roleCode = String(user.system_role?.code || '').toLowerCase();
+  const isSysAdmin = roleCode === 'admin' || roleCode === 'system_admin' || user.system_role?.id === 1;
+  return isCreator || isSysAdmin;
+});
+
+// Permission helpers for inviting members
+const isSysAdmin = computed(() => {
+  const user = authStore.user;
+  if (!user) return false;
+  const roleCode = String(user.system_role?.code || '').toLowerCase();
+  return roleCode === 'admin' || roleCode === 'system_admin' || user.system_role?.id === 1;
+});
+
+const currentWorkspaceRole = computed(() => {
+  const user = authStore.user;
+  if (!user || !workspace.value) return null;
+  // workspace.members might include the current user with role; try to find it
+  const member = (workspace.value.members || []).find(m => m.user_id === user.id || m.id === user.id || m.user?.id === user.id);
+  return member?.role || member?.workspace_role || null;
+});
+
+const canInviteMembers = computed(() => {
+  if (!authStore.user) return false;
+  if (isSysAdmin.value) return true;
+  const role = (currentWorkspaceRole.value || '').toLowerCase();
+  return role === 'workspace_owner' || role === 'workspace_admin';
+});
+
+// Invite members state
+const users = ref([]);
+const workspaceRoles = ref([]);
+const inviteUserId = ref('');
+const inviteRoleId = ref('');
+const inviting = ref(false);
+
+const openInviteModal = () => {
+  inviteUserId.value = '';
+  inviteRoleId.value = '';
+  // fetch users and workspace roles when opening
+  fetchUsers();
+  fetchWorkspaceRoles();
+  showInviteModal.value = true;
+};
+
+const closeInviteModal = () => {
+  showInviteModal.value = false;
+  inviting.value = false;
+};
+
+const sendInvite = async () => {
+  if (!inviteUserId.value || !inviteRoleId.value) {
+    errorToast('Pilih pengguna dan peran');
+    return;
+  }
+  // prevent inviting an existing member
+  const userAlreadyMember = users.value.find(u => String(u.id) === String(inviteUserId.value) && isUserMember(u));
+  if (userAlreadyMember) {
+    errorToast('Pengguna ini sudah menjadi anggota workspace');
+    return;
+  }
+  inviting.value = true;
+  try {
+    const slug = workspace.value.slug;
+    const payload = { user_id: inviteUserId.value, workspace_role_id: inviteRoleId.value };
+    const res = await workspaceService.addMember(slug, payload);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Undangan terkirim');
+      // refresh members list
+      await loadMembers(slug);
+      closeInviteModal();
+    } else {
+      errorToast(res.data?.message || 'Gagal mengirim undangan');
+    }
+  } catch (error) {
+    console.error('Error sending invite:', error);
+    const msg = error.response?.data?.message || 'Terjadi kesalahan saat mengirim undangan';
+    errorToast(msg);
+  } finally {
+    inviting.value = false;
+  }
+};
+
+const fetchUsers = async () => {
+  try {
+    const res = await (await import('@/api/services/userService')).userService.list();
+    users.value = res.data.data || [];
+  } catch (error) {
+    console.error('Error fetching users:', error);
+  }
+};
+
+const fetchWorkspaceRoles = async () => {
+  try {
+    const res = await workspaceService.getWorkspaceRoles();
+    workspaceRoles.value = res.data.data || [];
+  } catch (error) {
+    console.error('Error fetching workspace roles:', error);
+  }
+};
+
+// Edit / Remove member state
+const editMember = ref(null);
+const showEditMemberModal = ref(false);
+const editMemberWorkspaceRoleId = ref(null);
+const updatingMember = ref(false);
+
+const removeMemberTarget = ref(null);
+const showRemoveMemberModal = ref(false);
+const removingMember = ref(false);
+
+const openEditMemberModal = async (member) => {
+  editMember.value = member;
+  // ensure roles available
+  if (!workspaceRoles.value || workspaceRoles.value.length === 0) await fetchWorkspaceRoles();
+  // try to find current workspace role id from member
+  editMemberWorkspaceRoleId.value = member.workspace_role_id || member.role_id || member.workspace_role?.id || null;
+  showEditMemberModal.value = true;
+};
+
+const updateMemberRole = async () => {
+  if (!editMember.value) return;
+  if (!editMemberWorkspaceRoleId.value) { errorToast('Pilih peran'); return; }
+  updatingMember.value = true;
+  try {
+    const slug = workspace.value.slug;
+    const payload = { user_id: editMember.value.id || editMember.value.user_id || editMember.value.user?.id, workspace_role_id: editMemberWorkspaceRoleId.value };
+    const res = await workspaceService.updateMember(slug, payload);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Peran anggota diperbarui');
+      await loadMembers(slug);
+      showEditMemberModal.value = false;
+    } else {
+      errorToast(res.data?.message || 'Gagal memperbarui peran');
+    }
+  } catch (error) {
+    console.error('Error updating member:', error);
+    errorToast(error.response?.data?.message || 'Terjadi kesalahan');
+  } finally {
+    updatingMember.value = false;
+  }
+};
+
+const openRemoveMemberModal = (member) => {
+  removeMemberTarget.value = member;
+  showRemoveMemberModal.value = true;
+};
+
+const confirmRemoveMember = async () => {
+  if (!removeMemberTarget.value) return;
+  removingMember.value = true;
+  try {
+    const slug = workspace.value.slug;
+  const payload = { user_id: removeMemberTarget.value.id || removeMemberTarget.value.user_id || removeMemberTarget.value.user?.id, workspace_id: workspace.value.id };
+  const res = await workspaceService.removeMember(slug, payload);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Anggota dihapus');
+      await loadMembers(slug);
+      showRemoveMemberModal.value = false;
+    } else {
+      errorToast(res.data?.message || 'Gagal menghapus anggota');
+    }
+  } catch (error) {
+    console.error('Error removing member:', error);
+    errorToast(error.response?.data?.message || 'Terjadi kesalahan');
+  } finally {
+    removingMember.value = false;
+  }
+};
+
+
+// menu for member actions
+const menuOpenFor = ref(null);
+const toggleMemberMenu = (memberId) => {
+  menuOpenFor.value = menuOpenFor.value === memberId ? null : memberId;
+};
+
 
 // Load data on mount
 onMounted(async () => {
@@ -457,11 +844,59 @@ const loadWorkspace = async () => {
   }
 };
 
+const openDeleteWorkspaceModal = () => {
+  // set required confirmation text to workspace slug (prefer slug for uniqueness)
+  deleteRequireMatch.value = workspace.value?.slug || workspace.value?.name || '';
+  deleteConfirmText.value = '';
+  acknowledgeDelete.value = false;
+  showDeleteWorkspaceModal.value = true;
+};
+
+const closeDeleteWorkspaceModal = () => {
+  showDeleteWorkspaceModal.value = false;
+  deleteConfirmText.value = '';
+  deleteLoading.value = false;
+  acknowledgeDelete.value = false;
+};
+
+const confirmDeleteWorkspace = async () => {
+  if (!canDeleteWorkspace.value) {
+    errorToast('Anda tidak memiliki izin untuk menghapus workspace ini');
+    return;
+  }
+
+  // require exact match
+  if (!deleteConfirmText.value || deleteConfirmText.value.trim() !== String(deleteRequireMatch.value)) {
+    errorToast('Konfirmasi tidak sesuai. Ketik slug workspace untuk mengonfirmasi.');
+    return;
+  }
+
+  // require explicit extra check: user must check a final confirmation (we'll reuse an input check by requiring exact match above)
+  deleteLoading.value = true;
+  try {
+    const slug = workspace.value.slug;
+    const res = await workspaceService.remove(slug);
+    if (res.data && (res.data.success || res.status === 200 || res.status === 204)) {
+      successToast(res.data?.message || 'Workspace berhasil dihapus');
+      closeDeleteWorkspaceModal();
+      // redirect to dashboard
+      router.push('/dashboard');
+    } else {
+      errorToast(res.data?.message || 'Gagal menghapus workspace');
+    }
+  } catch (error) {
+    console.error('Error deleting workspace:', error);
+    const msg = error.response?.data?.message || 'Terjadi kesalahan saat menghapus workspace';
+    errorToast(msg);
+  } finally {
+    deleteLoading.value = false;
+  }
+};
+
 const loadNotes = async (workspaceId) => {
   try {
     const response = await noteService.list({ model_type: 'workspace', model_id: workspaceId });
     notes.value = response.data.data || [];
-    console.log('Loaded notes:', notes.value);
   } catch (error) {
     console.error('Error loading notes:', error);
   }
@@ -627,6 +1062,23 @@ const getWorkspaceInitials = (name) => {
 
 const getMemberInitials = (name) => {
   return name?.split(' ').map(word => word[0]).join('').slice(0, 2).toUpperCase() || 'U';
+};
+
+// Resolve a stable key for member objects - different API shapes may use id, user_id, or user.id
+const getMemberKey = (member) => {
+  if (!member) return null;
+  return member.id || member.user_id || member.user?.id || null;
+};
+
+// Check if a user object is already a member of the workspace
+const isUserMember = (user) => {
+  if (!user || !members.value) return false;
+  const uid = user.id || user.user_id || user.user?.id || null;
+  if (!uid) return false;
+  return members.value.some(m => {
+    const mid = getMemberKey(m);
+    return String(mid) === String(uid) || String(m.email || m.user?.email) === String(user.email);
+  });
 };
 
 // Robust helpers for project task counts and progress
@@ -1084,6 +1536,32 @@ const toggleProjectMenu = (projectId) => {
   border: 1px solid var(--color-border);
   border-radius: 12px;
 }
+
+.member-actions-menu { position: relative; }
+.member-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 36px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+  z-index: 1200;
+  min-width: 140px;
+  padding: 8px 0;
+}
+.member-menu-dropdown .dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text);
+}
+.member-menu-dropdown .dropdown-item:hover { background: var(--color-background-soft); }
+.member-menu-dropdown .text-danger { color: #dc3545; }
 
 .member-info {
   flex: 1;
@@ -1654,6 +2132,311 @@ const toggleProjectMenu = (projectId) => {
   }
 
   .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Added styles: settings danger, modal, danger button */
+.settings-danger {
+  margin-top: 32px;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--color-background-soft);
+  border: 1px solid #dc3545;
+  overflow: hidden;
+}
+
+.settings-danger h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #dc3545;
+}
+
+.settings-danger p {
+  font-size: 14px;
+  color: var(--color-muted);
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+/* Modal Content */
+.modal-content {
+  background: var(--color-background);
+  border-radius: 12px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.modal-close:hover {
+  background: var(--color-border);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-body p {
+  font-size: 14px;
+  color: var(--color-text);
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.modal-body ul {
+  margin: 0 0 24px 0;
+  padding-left: 20px;
+}
+
+.modal-body li {
+  font-size: 14px;
+  color: var(--color-muted);
+  margin-bottom: 4px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Form Elements in Modal */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+}
+
+/* Checkbox Styling - Following ProfilePage pattern */
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.checkbox-option input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  margin: 0;
+}
+
+/* Inline variant: keep checkbox and text on same line */
+.checkbox-option.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.checkbox-option.checkbox-inline .checkbox-label {
+  display: inline-block;
+  line-height: 1.3;
+}
+
+/* Accessibility: visually hidden helper */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Custom checkbox square */
+.custom-checkbox {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 6px;
+  background: var(--color-background);
+  border: 2px solid var(--color-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.custom-checkbox svg { display: block; }
+
+.checkbox-option .custom-checkbox:focus,
+.checkbox-option .custom-checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(220,53,69,0.12);
+  border-color: #dc3545;
+}
+
+.checkbox-option .custom-checkbox:hover {
+  border-color: #c82333;
+}
+
+.checkbox-option .custom-checkbox[aria-checked="true"] {
+  background: #dc3545;
+  border-color: #dc3545;
+}
+
+.checkbox-option.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checkbox-option.disabled .custom-checkbox { cursor: not-allowed; }
+
+/* Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--color-background);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-border);
+  transform: translateY(-1px);
+}
+
+/* Responsive Modal */
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 16px;
+  }
+  
+  .modal-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .modal-footer .btn {
     width: 100%;
     justify-content: center;
   }
