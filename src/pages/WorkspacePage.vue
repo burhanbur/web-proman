@@ -431,19 +431,35 @@
 
         <div class="modal-body">
           <div class="form-group">
-            <label for="inviteUser" class="form-label">Pilih Pengguna</label>
-            <select id="inviteUser" v-model="inviteUserId" class="form-input">
-              <option value="">-- Pilih Pengguna --</option>
-              <option 
-                v-for="u in users" 
-                :key="u.id || u.email" 
-                :value="u.id"
-                :disabled="isUserMember(u)"
-              >
-                {{ u.name }} — {{ u.email }}
-                <span v-if="isUserMember(u)"> (sudah anggota)</span>
-              </option>
-            </select>
+            <label for="inviteUser" class="form-label">Cari Pengguna (nama atau email)</label>
+            <div class="autocomplete">
+              <input
+                id="inviteUser"
+                type="text"
+                class="form-input"
+                v-model="inviteSearch"
+                @input="onSearchInput"
+                placeholder="Ketik minimal 3 huruf untuk mencari..."
+                autocomplete="off"
+                aria-autocomplete="list"
+              />
+
+              <ul v-if="showSearchResults" class="autocomplete-list" role="listbox">
+                <li
+                  v-for="u in users"
+                  :key="u.id || u.email"
+                  class="autocomplete-item"
+                  :class="{ disabled: isUserMember(u) }"
+                  role="option"
+                  @click="selectUser(u)"
+                >
+                  <div class="autocomplete-item-main">{{ u.name }} <small class="muted">— {{ u.email }}</small></div>
+                  <div v-if="isUserMember(u)" class="autocomplete-item-note">sudah anggota</div>
+                </li>
+                <li v-if="!isSearching && users.length === 0" class="autocomplete-empty">Tidak ada hasil</li>
+                <li v-if="isSearching" class="autocomplete-empty">Mencari...</li>
+              </ul>
+            </div>
           </div>
 
           <div class="form-group">
@@ -667,6 +683,11 @@ const workspaceRoles = ref([]);
 const inviteUserId = ref('');
 const inviteRoleId = ref('');
 const inviting = ref(false);
+// Autocomplete search state
+const inviteSearch = ref('');
+const isSearching = ref(false);
+const showSearchResults = ref(false);
+let searchTimeout = null;
 
 const openInviteModal = () => {
   inviteUserId.value = '';
@@ -713,6 +734,45 @@ const sendInvite = async () => {
   } finally {
     inviting.value = false;
   }
+};
+
+const onSearchInput = (e) => {
+  const val = inviteSearch.value || '';
+  // hide previously selected user id when typing
+  inviteUserId.value = '';
+  showSearchResults.value = !!val && val.length >= 3;
+  if (searchTimeout) clearTimeout(searchTimeout);
+  if (!val || val.length < 3) {
+    users.value = [];
+    isSearching.value = false;
+    return;
+  }
+  // debounce request
+  isSearching.value = true;
+  searchTimeout = setTimeout(() => performSearch(val), 350);
+};
+
+const performSearch = async (q) => {
+  try {
+    const res = await (await import('@/api/services/userService')).userService.list({ search: q });
+    users.value = res.data.data || [];
+  } catch (err) {
+    console.error('Error searching users:', err);
+    users.value = [];
+  } finally {
+    isSearching.value = false;
+    showSearchResults.value = true;
+  }
+};
+
+const selectUser = (u) => {
+  if (isUserMember(u)) {
+    // do nothing for existing members
+    return;
+  }
+  inviteUserId.value = u.id;
+  inviteSearch.value = u.name + ' — ' + u.email;
+  showSearchResults.value = false;
 };
 
 const fetchUsers = async () => {
@@ -1001,12 +1061,12 @@ const createNoteWithAttachments = async () => {
     formData.append('model_id', workspaceId.value);
     formData.append('content', newNoteContent.value.trim());
     
-    // Add files to FormData
-    selectedFiles.value.forEach((file, index) => {
-      formData.append(`attachments[${index}]`, file);
+    // Add files to FormData using attachments[] so backend matches validation
+    selectedFiles.value.forEach((file) => {
+      formData.append('attachments[]', file);
     });
-    
-    const res = await noteService.create(formData);
+
+    const res = await noteService.create(formData, { headers: { 'Content-Type': 'multipart/form-data' } });
     if (res.data && res.data.success) {
       successToast(res.data.message || 'Catatan berhasil dibuat');
       // prepend new note to list if returned
@@ -2304,6 +2364,29 @@ const toggleProjectMenu = (projectId) => {
   outline: none;
   border-color: var(--color-primary-500);
 }
+
+/* Autocomplete styles */
+.autocomplete { position: relative; }
+.autocomplete-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+  z-index: 1400;
+  max-height: 280px;
+  overflow: auto;
+  padding: 8px 0;
+}
+.autocomplete-item { padding: 10px 12px; cursor: pointer; display:flex; justify-content:space-between; gap:12px; align-items:center; }
+.autocomplete-item.disabled { opacity: 0.6; cursor: not-allowed; }
+.autocomplete-item:hover { background: var(--color-background-soft); }
+.autocomplete-item-main { font-weight: 500; color: var(--color-text); }
+.autocomplete-item-note { font-size: 12px; color: var(--color-muted); }
+.autocomplete-empty { padding: 10px 12px; color: var(--color-muted); }
 
 /* Checkbox Styling - Following ProfilePage pattern */
 .checkbox-option {
