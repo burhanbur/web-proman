@@ -5,7 +5,14 @@ export const workspaceService = {
     list: (params) => api.get('/workspaces', { params }),
     get: (slug) => api.get(`/workspaces/${slug}`),
     create: (payload) => api.post('/workspaces', payload),
-    update: (slug, payload) => api.put(`/workspaces/${slug}`, payload),
+    update: (slug, payload, config = {}) => {
+        if (typeof FormData !== 'undefined' && payload instanceof FormData) {
+            if (!payload.has('_method')) payload.append('_method', 'PUT');
+            return api.post(`/workspaces/${slug}`, payload, config);
+        }
+        return api.put(`/workspaces/${slug}`, payload, config);
+    },
+    removeLogo: (slug) => api.post(`/workspaces/${slug}/remove-logo`),
     remove: (slug) => api.delete(`/workspaces/${slug}`),
     
     // Member management

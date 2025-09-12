@@ -169,12 +169,12 @@
               <font-awesome-icon icon="users" size="3x" class="empty-icon" />
               <h3>Belum ada anggota terbaru</h3>
               <p>Anggota akan muncul di sini ketika anggota ditambahkan pada workspace</p>
-              <div style="margin-top: 16px;">
+              <!-- <div style="margin-top: 16px;">
                 <button class="btn btn-primary" @click="openInviteModal" v-if="canInviteMembers">
                   <font-awesome-icon icon="user-plus" size="sm" />
                   Undang Anggota
                 </button>
-              </div>
+              </div> -->
             </div>
 
             <div v-else class="members-list">
@@ -268,8 +268,97 @@
           <div v-if="activeTab === 'settings'" class="settings-tab">
             <div class="settings-section">
               <h3>Pengaturan Workspace</h3>
-              <p>Kelola preferensi dan konfigurasi workspace</p>
-              <!-- Settings form would go here -->
+                      <p>Kelola preferensi dan konfigurasi workspace</p>
+                      <!-- Settings form: 2-column layout (75% left / 25% right) -->
+                      <div class="settings-form">
+                        <div class="settings-form-row">
+                          <div class="settings-left">
+                            <div class="form-group">
+                              <label class="form-label">Nama Workspace</label>
+                              <input class="form-input" v-model="settings.name" type="text" />
+                            </div>
+                            <div class="form-group">
+                              <label class="form-label">Deskripsi</label>
+                              <textarea class="form-input" v-model="settings.description" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                              <label class="form-label">Status</label>
+                              <div class="status-group">
+                                <div class="status-item">
+                                  <label class="switch" aria-label="Aktifkan workspace">
+                                    <input type="checkbox" v-model="settings.is_active" aria-checked="{{settings.is_active}}" />
+                                    <span class="switch-slider" role="switch" :aria-checked="String(settings.is_active)"></span>
+                                  </label>
+                                  <div class="switch-labels">
+                                    <div class="switch-title">Aktif</div>
+                                    <div class="switch-sub">Workspace dapat digunakan</div>
+                                  </div>
+                                </div>
+
+                                <div class="status-item">
+                                  <label class="switch" aria-label="Jadikan workspace publik">
+                                    <input type="checkbox" v-model="settings.is_public" aria-checked="{{settings.is_public}}" />
+                                    <span class="switch-slider" role="switch" :aria-checked="String(settings.is_public)"></span>
+                                  </label>
+                                  <div class="switch-labels">
+                                    <div class="switch-title">Publik</div>
+                                    <div class="switch-sub">Dapat dilihat oleh semua pengguna</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="settings-right">
+                            <label class="form-label">Logo Workspace</label>
+                            <div class="logo-upload">
+                              <input type="file" ref="logoInput" class="file-input" @change="onLogoSelect" accept="image/*" />
+                              <div v-if="displayLogoSrc" class="logo-preview logo-card" @click="triggerLogoDialog" title="Klik untuk mengganti logo">
+                                <img class="logo-thumb large" :src="displayLogoSrc" alt="logo preview"/>
+                                <div class="logo-meta">
+                                  <small v-if="settings.logoFile">{{ settings.logoFile?.name }}</small>
+                                  <small v-else-if="workspace.logo">Logo saat ini</small>
+                                </div>
+                              </div>
+                              <div v-else class="logo-preview logo-empty logo-card" @click="triggerLogoDialog" title="Klik untuk memilih logo">
+                                <div class="logo-empty-text">Tidak ada logo</div>
+                              </div>
+
+                              <div class="logo-actions">
+                                <button class="btn btn-primary" @click.prevent="triggerLogoDialog">
+                                  <font-awesome-icon icon="upload" />
+                                  <span class="btn-text">Pilih Logo</span>
+                                </button>
+
+                                <button
+                                  class="btn btn-danger"
+                                  v-if="settings.logoFile"
+                                  @click="removeSelectedLogo"
+                                  title="Batalkan pilihan file"
+                                >
+                                  <font-awesome-icon icon="ban" />
+                                  <span class="btn-text">Batalkan</span>
+                                </button>
+
+                                <button
+                                  :class="['btn', settings.removeLogo ? 'btn-warning' : 'btn-danger']"
+                                  v-else-if="workspace.logo && !settings.logoFile"
+                                  @click.prevent="handleRemoveLogoClick"
+                                >
+                                  <font-awesome-icon :icon="settings.removeLogo ? 'undo' : 'trash'" />
+                                  <span class="btn-text">{{ settings.removeLogo ? 'Batalkan Hapus' : 'Hapus Logo' }}</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="form-group actions-row">
+                          <button class="btn btn-primary" :disabled="savingSettings" @click="saveWorkspaceSettings">
+                            <font-awesome-icon icon="save" /> {{ savingSettings ? 'Menyimpan...' : 'Simpan Perubahan' }}
+                          </button>
+                        </div>
+                      </div>
 
               <!-- Danger zone: delete workspace -->
               <div class="settings-danger">
@@ -609,7 +698,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { workspaceService } from '@/api/services/workspaceService';
 import { noteService } from '@/api/services/noteService';
@@ -793,6 +882,181 @@ const fetchWorkspaceRoles = async () => {
   }
 };
 
+// Settings state
+const settings = ref({ name: '', description: '', logoFile: null, is_active: true, is_public: false, removeLogo: false });
+const settingsPreview = ref(null);
+const savingSettings = ref(false);
+
+// Prefill settings when workspace loads
+const fillSettingsFromWorkspace = () => {
+  settings.value.name = workspace.value?.name || '';
+  settings.value.description = workspace.value?.description || '';
+  settings.value.logoFile = null;
+  settings.value.is_active = typeof workspace.value?.is_active !== 'undefined' ? !!workspace.value.is_active : true;
+  settings.value.is_public = typeof workspace.value?.is_public !== 'undefined' ? !!workspace.value.is_public : false;
+  settings.value.removeLogo = false;
+  settingsPreview.value = null;
+};
+
+// (settings watcher below will fill settings when workspace changes)
+
+// template ref for logo input
+const logoInput = ref(null);
+
+const triggerLogoDialog = () => {
+  if (logoInput.value && typeof logoInput.value.click === 'function') logoInput.value.click();
+};
+
+// Logo handlers
+const MAX_LOGO_SIZE = 5 * 1024 * 1024; // 5 MB
+const settingsPreviewIsObjectUrl = ref(false);
+
+const onLogoSelect = (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  // validate size
+  if (f.size > MAX_LOGO_SIZE) {
+    errorToast('Ukuran logo maksimal 5 MB');
+    // reset input
+    if (logoInput.value) logoInput.value.value = null;
+    return;
+  }
+  settings.value.logoFile = f;
+  // selecting a new file cancels any pending removal
+  settings.value.removeLogo = false;
+  // preview
+  // revoke previous object URL if any
+  if (settingsPreviewIsObjectUrl.value && settingsPreview.value) {
+    try { URL.revokeObjectURL(settingsPreview.value); } catch (err) { /* ignore */ }
+  }
+  settingsPreview.value = URL.createObjectURL(f);
+  settingsPreviewIsObjectUrl.value = true;
+};
+
+const removeSelectedLogo = () => {
+  // revoke object url if used
+  if (settingsPreviewIsObjectUrl.value && settingsPreview.value) {
+    try { URL.revokeObjectURL(settingsPreview.value); } catch (err) { /* ignore */ }
+  }
+  settings.value.logoFile = null;
+  settingsPreview.value = null;
+  settingsPreviewIsObjectUrl.value = false;
+  if (logoInput.value) logoInput.value.value = null;
+  // removing selected file does not mark for server-side deletion
+  settings.value.removeLogo = false;
+};
+
+const markRemoveLogo = () => {
+  // mark that the existing logo should be removed on save
+  settings.value.removeLogo = true;
+  // clear any selected file or preview
+  if (settingsPreviewIsObjectUrl.value && settingsPreview.value) {
+    try { URL.revokeObjectURL(settingsPreview.value); } catch (err) { }
+  }
+  settings.value.logoFile = null;
+  settingsPreview.value = null;
+  settingsPreviewIsObjectUrl.value = false;
+  if (logoInput.value) logoInput.value.value = null;
+};
+
+const toggleRemoveLogo = () => {
+  // toggle removal mark; if turning off, just unset flag
+  if (settings.value.removeLogo) {
+    settings.value.removeLogo = false;
+  } else {
+    // mark for removal and clear local preview/file
+    settings.value.removeLogo = true;
+    if (settingsPreviewIsObjectUrl.value && settingsPreview.value) {
+      try { URL.revokeObjectURL(settingsPreview.value); } catch (err) { }
+    }
+    settings.value.logoFile = null;
+    settingsPreview.value = null;
+    settingsPreviewIsObjectUrl.value = false;
+    if (logoInput.value) logoInput.value.value = null;
+  }
+};
+
+// Derived display source for logo: prefer preview; if removeLogo marked, hide existing logo
+const displayLogoSrc = computed(() => {
+  if (settingsPreview.value) return settingsPreview.value;
+  if (settings.value.removeLogo) return null;
+  return workspace.value?.logo || null;
+});
+
+const handleRemoveLogoClick = async () => {
+  // If already marked for removal, just toggle off
+  if (settings.value.removeLogo) {
+    settings.value.removeLogo = false;
+    return;
+  }
+
+  // Ask for confirmation before calling API to immediately remove stored logo
+  const ok = confirm('Hapus logo workspace ini? Tindakan ini akan menghapus file dari penyimpanan.');
+  if (!ok) return;
+
+  try {
+    savingSettings.value = true;
+    const slug = workspace.value?.slug;
+    const res = await workspaceService.removeLogo(slug);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Logo berhasil dihapus');
+      // Reload workspace to reflect changes
+      await loadWorkspace();
+      // reset local settings state
+      fillSettingsFromWorkspace();
+    } else {
+      errorToast(res.data?.message || 'Gagal menghapus logo');
+    }
+  } catch (err) {
+    console.error('Error removing logo:', err);
+    errorToast(err.response?.data?.message || 'Terjadi kesalahan saat menghapus logo');
+  } finally {
+    savingSettings.value = false;
+  }
+};
+
+const saveWorkspaceSettings = async () => {
+  if (!workspace.value) return;
+  savingSettings.value = true;
+  try {
+    const slug = workspace.value.slug;
+    // prepare payload; use FormData if file present
+    if (settings.value.logoFile) {
+      const fd = new FormData();
+      fd.append('name', settings.value.name);
+      fd.append('description', settings.value.description);
+      fd.append('is_active', settings.value.is_active ? '1' : '0');
+      fd.append('is_public', settings.value.is_public ? '1' : '0');
+      if (settings.value.removeLogo) fd.append('remove_logo', '1');
+      fd.append('logo', settings.value.logoFile);
+  const res = await workspaceService.update(slug, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      // if workspaceService.update doesn't accept FormData headers, axios will set headers automatically
+      if (res.data && res.data.success) {
+        successToast(res.data.message || 'Workspace diperbarui');
+        // reload workspace
+        await loadWorkspace();
+      } else {
+        errorToast(res.data?.message || 'Gagal menyimpan pengaturan');
+      }
+    } else {
+      const payload = { name: settings.value.name, description: settings.value.description, is_active: settings.value.is_active, is_public: settings.value.is_public };
+      if (settings.value.removeLogo) payload.remove_logo = true;
+      const res = await workspaceService.update(workspace.value.slug, payload);
+      if (res.data && res.data.success) {
+        successToast(res.data.message || 'Workspace diperbarui');
+        await loadWorkspace();
+      } else {
+        errorToast(res.data?.message || 'Gagal menyimpan pengaturan');
+      }
+    }
+  } catch (error) {
+    console.error('Error saving workspace settings:', error);
+    errorToast(error.response?.data?.message || 'Terjadi kesalahan saat menyimpan');
+  } finally {
+    savingSettings.value = false;
+  }
+};
+
 // Edit / Remove member state
 const editMember = ref(null);
 const showEditMemberModal = ref(false);
@@ -876,6 +1140,30 @@ onMounted(async () => {
   loading.value = false;
 });
 
+// When workspace is loaded or changed, prefill settings
+watch(workspace, (newVal) => {
+  if (newVal) fillSettingsFromWorkspace();
+});
+
+// Close member menu when clicking outside
+const handleDocumentClick = (e) => {
+  // if click happened inside a member-actions-menu, do nothing
+  if (e.target && e.target.closest && e.target.closest('.member-actions-menu')) return;
+  // otherwise close any open member menu
+  menuOpenFor.value = null;
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick);
+  if (settingsPreviewIsObjectUrl.value && settingsPreview.value) {
+    try { URL.revokeObjectURL(settingsPreview.value); } catch (err) { }
+  }
+});
+
 // Load workspace data
 const loadWorkspace = async () => {
   try {
@@ -884,6 +1172,7 @@ const loadWorkspace = async () => {
     // Load workspace details
     const workspaceResponse = await workspaceService.get(workspaceSlug);
     workspace.value = workspaceResponse.data.data;
+    console.log('Workspace response:', workspace.value);
     workspaceId.value = workspace.value.id;
 
     // Load notes
@@ -1241,6 +1530,158 @@ const toggleProjectMenu = (projectId) => {
 };
 </script>
 
+  <style scoped>
+  /* Logo card adapted for dark theme */
+  .logo-upload { display: flex; gap: 18px; align-items: flex-start; }
+
+  .logo-preview.logo-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--panel-bg, rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.04);
+    min-height: 160px;
+    max-width: 220px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+
+  .logo-preview.logo-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(2,6,23,0.6);
+  }
+
+  .logo-thumb.large {
+    width: 140px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.55);
+    margin-bottom: 10px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.04));
+  }
+
+  .logo-meta { text-align: center; }
+  .logo-meta small { display: block; color: var(--muted, #9ca3af); font-size: 13px; margin-top: 6px; }
+
+  /* Empty card style */
+  .logo-empty.logo-card { border-style: dashed; opacity: 0.9; }
+  .logo-empty-text { color: var(--muted, #9ca3af); font-size: 13px; }
+
+  /* Actions column */
+  .logo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+    margin-top: 4px;
+  }
+
+  /* Make buttons visually match dark theme and consistent sizes */
+  .logo-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-size: 15px;
+    line-height: 1;
+    justify-content: center;
+    min-width: 160px;
+  }
+
+  .logo-actions .btn.btn-secondary { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.03); color: var(--text, #e5e7eb); }
+  .logo-actions .btn.btn-danger { background: #ae2323; color: #fff; border: none; }
+  .logo-actions .btn.btn-warning { background: #ae2323; color: #fff; border: none; }
+
+  .logo-actions .btn:hover { filter: brightness(1.06); }
+
+  /* Make layout responsive on small screens */
+  @media (max-width: 720px) {
+    .logo-upload { flex-direction: column; align-items: stretch; }
+    .logo-actions { flex-direction: row; justify-content: flex-start; }
+    .logo-actions .btn { min-width: 120px; padding: 10px 14px; }
+    .logo-preview.logo-card { margin-right: 0; max-width: none; }
+  }
+  
+  /* Light theme overrides */
+  @media (prefers-color-scheme: light) {
+    .logo-preview.logo-card {
+      background: #ffffff;
+      border: 1px solid rgba(15,23,42,0.06);
+      box-shadow: 0 18px 40px rgba(15,23,42,0.06);
+      transform: none; /* avoid dark hover lift feel */
+    }
+
+    .logo-preview.logo-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 22px 48px rgba(16,24,40,0.08);
+    }
+
+    .logo-thumb.large {
+      width: 160px;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 12px;
+      box-shadow: 0 18px 40px rgba(16,24,40,0.08);
+    }
+
+  /* stronger label color for light theme */
+  .logo-meta small { color: #4b5563; opacity: 1; font-weight: 600; }
+
+    .logo-empty.logo-card { border-style: dashed; border-color: rgba(15,23,42,0.06); }
+
+    .logo-actions {
+      align-items: center;
+      margin-top: 0;
+      gap: 18px;
+      justify-content: flex-start;
+      flex-direction: row;
+    }
+
+    .logo-actions .btn {
+      min-width: 220px;
+      padding: 16px 26px;
+      border-radius: 14px;
+      font-size: 16px;
+    }
+
+    /* Make the secondary action clearly readable in light mode */
+    .logo-actions .btn.btn-secondary {
+      background: transparent;
+      color: #374151; /* slate-700 for good contrast */
+      border: none;
+      opacity: 1;
+    }
+
+    .logo-actions .btn .btn-text { color: inherit; font-weight: 600; }
+    .logo-actions .btn svg, .logo-actions .btn .svg-inline--fa { color: inherit; fill: currentColor; }
+
+    /* Big rounded delete button like screenshot */
+    .logo-actions .btn.btn-danger {
+      background: #7f1d1d; /* deep red */
+      color: #fff;
+      border-radius: 28px;
+      padding-left: 28px;
+      padding-right: 28px;
+      box-shadow: 0 8px 24px rgba(127,29,29,0.12);
+      min-width: 240px;
+      justify-content: flex-start;
+      gap: 14px;
+    }
+
+    .logo-actions .btn.btn-warning {
+      background: #92400e;
+      color: #fff;
+      border-radius: 18px;
+    }
+  }
+
+  </style>
 <style scoped>
 .workspace-page {
   min-height: 100vh;
@@ -2364,6 +2805,49 @@ const toggleProjectMenu = (projectId) => {
   outline: none;
   border-color: var(--color-primary-500);
 }
+
+.logo-upload { display:flex; align-items:center; gap:12px; }
+.logo-preview { display:flex; flex-direction:column; align-items:center; cursor:pointer; }
+.logo-thumb { width:64px; height:64px; border-radius:8px; object-fit:cover; border:1px solid var(--color-border); }
+.logo-meta { margin-top:6px; color:var(--color-muted); font-size:12px; }
+.file-input { display:none; }
+
+/* Settings form two-column layout */
+.settings-form { width: 100%; }
+.settings-form-row { display: flex; gap: 20px; align-items: flex-start; }
+.settings-left { flex: 3 1 0%; }
+.settings-right { flex: 1 1 0%; display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
+.actions-row { margin-top: 18px; }
+
+@media (max-width: 768px) {
+  .settings-form-row { flex-direction: column; }
+  .settings-right { align-items: flex-start; }
+}
+
+.checkbox-option { display:flex; align-items:center; gap:12px; }
+.checkbox-label input[type="checkbox"] { margin:0 6px 0 0; }
+.logo-actions .btn-danger { margin-left:8px; }
+
+/* Status toggles */
+.status-group { display:flex; gap:18px; flex-wrap:wrap; }
+.status-item { display:flex; align-items:center; gap:12px; }
+.switch { position: relative; display: inline-block; width:48px; height:28px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch-slider {
+  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--color-border); border-radius: 999px; transition: background-color .18s ease;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
+}
+.switch-slider::before {
+  content: '';
+  position: absolute; width: 20px; height: 20px; left: 4px; top: 4px; background: white; border-radius: 50%; transition: transform .18s ease;
+  box-shadow: 0 2px 6px rgba(16,24,40,0.08);
+}
+.switch input:checked + .switch-slider { background-color: var(--color-primary-500); }
+.switch input:checked + .switch-slider::before { transform: translateX(20px); }
+.switch-labels { display:flex; flex-direction:column; }
+.switch-title { font-weight:600; font-size:14px; color:var(--color-text); }
+.switch-sub { font-size:12px; color:var(--color-muted); }
 
 /* Autocomplete styles */
 .autocomplete { position: relative; }

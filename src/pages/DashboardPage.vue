@@ -391,7 +391,7 @@
             >
               <div class="workspace-header">
                 <div class="workspace-avatar">
-                  <img v-if="workspace.avatar" :src="workspace.avatar" :alt="workspace.name" />
+                  <img v-if="workspace.logo" :src="workspace.logo" :alt="workspace.name" />
                   <div v-else class="workspace-avatar-fallback">
                     {{ getWorkspaceInitials(workspace.name) }}
                   </div>
@@ -893,14 +893,6 @@ const loadAllProjects = async () => {
     errorToast('Gagal memuat proyek');
     console.error('Error loading all projects:', error);
   }
-};
-
-// Select workspace and load its projects
-const selectWorkspace = async (workspace) => {
-  selectedWorkspace.value = workspace;
-  await loadProjects(workspace.slug);
-  // Load projects to update filter dropdown
-  await loadTasks();
 };
 
 // Called when user changes workspace/project filter in the UI
