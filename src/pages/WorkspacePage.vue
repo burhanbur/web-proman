@@ -42,7 +42,7 @@
               <font-awesome-icon icon="user-plus" size="sm" />
               Undang Anggota
             </button>
-            <button class="btn btn-primary" @click="showCreateProjectModal = true" v-show="activeTab === 'projects'">
+            <button v-if="canInviteMembers" class="btn btn-primary" @click="openCreateProjectModal" v-show="activeTab === 'projects'">
               <font-awesome-icon icon="plus" size="sm" />
               Buat Proyek
             </button>
@@ -439,6 +439,205 @@
       <router-link to="/dashboard" class="btn btn-primary">Kembali ke Dashboard</router-link>
     </div>
 
+    <!-- Create Project Modal -->
+    <div v-if="showCreateProjectModal" class="modal-overlay" @click="closeCreateProjectModal">
+      <div class="modal-container modal-large" @click.stop>
+        <div class="modal-header">
+          <h3>Buat Proyek Baru</h3>
+          <button class="btn-close" @click="closeCreateProjectModal">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="project-form">
+            <div class="form-row">
+              <div class="form-left">
+                <div class="form-group">
+                  <label for="projectName" class="form-label">Nama Proyek <span class="required">*</span></label>
+                  <input
+                    id="projectName"
+                    v-model="newProject.name"
+                    type="text"
+                    class="form-input"
+                    placeholder="Masukkan nama proyek"
+                    maxlength="255"
+                    required
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="projectDescription" class="form-label">Deskripsi</label>
+                  <textarea
+                    id="projectDescription"
+                    v-model="newProject.description"
+                    class="form-input"
+                    rows="4"
+                    placeholder="Masukkan deskripsi proyek"
+                  ></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Pengaturan Proyek</label>
+                  <div class="status-group">
+                    <div class="status-item">
+                      <label class="switch" aria-label="Aktifkan proyek">
+                        <input type="checkbox" v-model="newProject.is_active" />
+                        <span class="switch-slider" role="switch" :aria-checked="String(newProject.is_active)"></span>
+                      </label>
+                      <div class="switch-labels">
+                        <div class="switch-title">Aktif</div>
+                        <div class="switch-sub">Proyek dapat digunakan</div>
+                      </div>
+                    </div>
+
+                    <div class="status-item">
+                      <label class="switch" aria-label="Jadikan proyek publik">
+                        <input type="checkbox" v-model="newProject.is_public" />
+                        <span class="switch-slider" role="switch" :aria-checked="String(newProject.is_public)"></span>
+                      </label>
+                      <div class="switch-labels">
+                        <div class="switch-title">Publik</div>
+                        <div class="switch-sub">Dapat dilihat oleh semua anggota workspace</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-right">
+                <label class="form-label">Logo Proyek</label>
+                <div class="logo-upload">
+                  <input type="file" ref="projectLogoInput" class="file-input" @change="onProjectLogoSelect" accept="image/*" />
+                  <div v-if="projectLogoPreview" class="logo-preview logo-card" @click="triggerProjectLogoDialog" title="Klik untuk mengganti logo">
+                    <img class="logo-thumb large" :src="projectLogoPreview" alt="logo preview"/>
+                    <div class="logo-meta">
+                      <small>{{ newProject.logoFile?.name || 'Logo proyek' }}</small>
+                    </div>
+                  </div>
+                  <div v-else class="logo-preview logo-empty logo-card" @click="triggerProjectLogoDialog" title="Klik untuk memilih logo">
+                    <div class="logo-empty-text">Tidak ada logo</div>
+                  </div>
+
+                  <div class="logo-actions">
+                    <button class="btn btn-primary" @click.prevent="triggerProjectLogoDialog">
+                      <font-awesome-icon icon="upload" />
+                      <span class="btn-text">Pilih Logo</span>
+                    </button>
+
+                    <button
+                      class="btn btn-danger"
+                      v-if="newProject.logoFile"
+                      @click="removeProjectLogo"
+                      title="Hapus file yang dipilih"
+                    >
+                      <font-awesome-icon icon="trash" />
+                      <span class="btn-text">Hapus</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Anggota Proyek</label>
+              <div class="members-section">
+                <div class="members-list-container">
+                  <div v-if="newProject.members.length === 0" class="no-members">
+                    <p>Belum ada anggota yang ditambahkan. Klik tombol di bawah untuk menambah anggota.</p>
+                  </div>
+                  <div v-else class="selected-members">
+                    <div v-for="(member, index) in newProject.members" :key="index" class="member-row">
+                      <div class="member-info">
+                        <div class="member-avatar">
+                          <img v-if="member.user?.avatar" :src="member.user.avatar" :alt="member.user.name" />
+                          <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.user?.name) }}</div>
+                        </div>
+                        <div class="member-details">
+                          <div class="member-name">{{ member.user?.name }}</div>
+                          <div class="member-email">{{ member.user?.email }}</div>
+                        </div>
+                      </div>
+                      <div class="member-role-select">
+                        <select v-model="member.project_role_id" class="form-input">
+                          <option value="">-- Pilih Peran --</option>
+                          <option v-for="role in projectRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
+                        </select>
+                      </div>
+                      <button class="btn-remove" @click="removeMemberFromProject(index)" title="Hapus anggota">
+                        <font-awesome-icon icon="times" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button class="btn btn-secondary btn-add-member" @click="openAddMemberModal">
+                  <font-awesome-icon icon="user-plus" />
+                  Tambah Anggota
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeCreateProjectModal" :disabled="creatingProject">Batal</button>
+          <button 
+            class="btn btn-primary" 
+            :disabled="creatingProject || !isProjectFormValid" 
+            @click="createProject"
+          >
+            <font-awesome-icon v-if="creatingProject" icon="spinner" spin />
+            <font-awesome-icon v-else icon="plus" />
+            {{ creatingProject ? 'Membuat...' : 'Buat Proyek' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Member to Project Modal -->
+    <div v-if="showAddMemberModal" class="modal-overlay" @click="closeAddMemberModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Tambah Anggota ke Proyek</h3>
+          <button class="btn-close" @click="closeAddMemberModal">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="memberSelect" class="form-label">Pilih Anggota Workspace</label>
+            <select id="memberSelect" v-model="selectedMemberId" class="form-input">
+              <option value="">-- Pilih Anggota --</option>
+              <option 
+                v-for="member in availableMembers" 
+                :key="getMemberKey(member)" 
+                :value="getMemberKey(member)"
+              >
+                {{ member.name || member.user?.name }} - {{ member.email || member.user?.email }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="memberProjectRole" class="form-label">Peran dalam Proyek</label>
+            <select id="memberProjectRole" v-model="selectedMemberRoleId" class="form-input">
+              <option value="">-- Pilih Peran --</option>
+              <option v-for="role in projectRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeAddMemberModal">Batal</button>
+          <button 
+            class="btn btn-primary" 
+            :disabled="!selectedMemberId || !selectedMemberRoleId" 
+            @click="addMemberToProject"
+          >
+            <font-awesome-icon icon="plus" />
+            Tambah
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Create Note Modal -->
     <div v-if="showCreateNoteModal" class="modal-overlay" @click="closeCreateNoteModal">
       <div class="modal-container" @click.stop>
@@ -735,6 +934,7 @@ import { workspaceService } from '@/api/services/workspaceService';
 import { noteService } from '@/api/services/noteService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
+import api from '@/api/axios';
 
 const route = useRoute();
 const router = useRouter();
@@ -756,6 +956,25 @@ const creatingNote = ref(false);
 const showCreateNoteModal = ref(false);
 const selectedFiles = ref([]);
 const isDragOver = ref(false);
+
+// Create project state
+const newProject = ref({
+  name: '',
+  description: '',
+  is_active: true,
+  is_public: false,
+  logoFile: null,
+  members: []
+});
+const projectLogoPreview = ref(null);
+const projectLogoInput = ref(null);
+const creatingProject = ref(false);
+
+// Add member to project state
+const showAddMemberModal = ref(false);
+const selectedMemberId = ref('');
+const selectedMemberRoleId = ref('');
+const projectRoles = ref([]);
 
 // Delete workspace state
 const showDeleteWorkspaceModal = ref(false);
@@ -889,6 +1108,21 @@ const canAccessSettings = computed(() => {
   const role = (currentWorkspaceRole.value || '')?.toString().toLowerCase() || '';
   // accept variants that include 'owner'
   return role.includes('owner');
+});
+
+// Project form validation
+const isProjectFormValid = computed(() => {
+  return newProject.value.name.trim().length > 0;
+});
+
+// Available members for project (workspace members not already added)
+const availableMembers = computed(() => {
+  if (!members.value) return [];
+  const addedMemberIds = newProject.value.members.map(m => getMemberKey(m.user));
+  return members.value.filter(member => {
+    const memberId = getMemberKey(member);
+    return !addedMemberIds.includes(memberId);
+  });
 });
 
 // Invite members state
@@ -1373,6 +1607,226 @@ const confirmDeleteWorkspace = async () => {
   }
 };
 
+// Project creation functions
+const openCreateProjectModal = async () => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk membuat proyek');
+    return;
+  }
+  
+  // Reset form
+  newProject.value = {
+    name: '',
+    description: '',
+    is_active: true,
+    is_public: false,
+    logoFile: null,
+    members: []
+  };
+  projectLogoPreview.value = null;
+  
+  // Load project roles
+  await fetchProjectRoles();
+  
+  showCreateProjectModal.value = true;
+};
+
+const closeCreateProjectModal = () => {
+  showCreateProjectModal.value = false;
+  // Clean up
+  if (projectLogoPreview.value && newProject.value.logoFile) {
+    try { URL.revokeObjectURL(projectLogoPreview.value); } catch (err) { /* ignore */ }
+  }
+  projectLogoPreview.value = null;
+  if (projectLogoInput.value) projectLogoInput.value.value = null;
+};
+
+const fetchProjectRoles = async () => {
+  try {
+    // Try to get project roles from API
+    const response = await (await import('@/api/axios')).default.get('/project-roles');
+    projectRoles.value = response.data.data || [];
+  } catch (error) {
+    console.error('Error fetching project roles:', error);
+    // Fallback roles if API fails
+    projectRoles.value = [
+      { id: 1, name: 'Owner', code: 'owner' },
+      { id: 2, name: 'Admin', code: 'admin' },
+      { id: 3, name: 'Member', code: 'member' },
+      { id: 4, name: 'Guest', code: 'guest' }
+    ];
+  }
+};
+
+const triggerProjectLogoDialog = () => {
+  if (projectLogoInput.value && typeof projectLogoInput.value.click === 'function') {
+    projectLogoInput.value.click();
+  }
+};
+
+const onProjectLogoSelect = (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) {
+    // Clear any existing selection
+    newProject.value.logoFile = null;
+    if (projectLogoPreview.value) {
+      try { URL.revokeObjectURL(projectLogoPreview.value); } catch (err) { /* ignore */ }
+    }
+    projectLogoPreview.value = null;
+    return;
+  }
+  
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    errorToast('File harus berupa gambar');
+    if (projectLogoInput.value) projectLogoInput.value.value = null;
+    return;
+  }
+  
+  // Validate file size (5MB max)
+  const MAX_SIZE = 5 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    errorToast('Ukuran logo maksimal 5 MB');
+    if (projectLogoInput.value) projectLogoInput.value.value = null;
+    return;
+  }
+  
+  newProject.value.logoFile = file;
+  
+  // Create preview
+  if (projectLogoPreview.value) {
+    try { URL.revokeObjectURL(projectLogoPreview.value); } catch (err) { /* ignore */ }
+  }
+  projectLogoPreview.value = URL.createObjectURL(file);
+};
+
+const removeProjectLogo = () => {
+  if (projectLogoPreview.value) {
+    try { URL.revokeObjectURL(projectLogoPreview.value); } catch (err) { /* ignore */ }
+  }
+  newProject.value.logoFile = null;
+  projectLogoPreview.value = null;
+  if (projectLogoInput.value) projectLogoInput.value.value = null;
+};
+
+const openAddMemberModal = () => {
+  selectedMemberId.value = '';
+  selectedMemberRoleId.value = '';
+  showAddMemberModal.value = true;
+};
+
+const closeAddMemberModal = () => {
+  showAddMemberModal.value = false;
+  selectedMemberId.value = '';
+  selectedMemberRoleId.value = '';
+};
+
+const addMemberToProject = () => {
+  if (!selectedMemberId.value || !selectedMemberRoleId.value) {
+    errorToast('Pilih anggota dan peran');
+    return;
+  }
+  
+  const member = members.value.find(m => getMemberKey(m) === selectedMemberId.value);
+  if (!member) {
+    errorToast('Anggota tidak ditemukan');
+    return;
+  }
+  
+  // Check if already added
+  const alreadyAdded = newProject.value.members.some(m => getMemberKey(m.user) === selectedMemberId.value);
+  if (alreadyAdded) {
+    errorToast('Anggota sudah ditambahkan');
+    return;
+  }
+  
+  newProject.value.members.push({
+    user_id: selectedMemberId.value,
+    project_role_id: selectedMemberRoleId.value,
+    user: member.user || member  // Handle different API response structures
+  });
+  
+  closeAddMemberModal();
+  successToast('Anggota berhasil ditambahkan');
+};
+
+const removeMemberFromProject = (index) => {
+  newProject.value.members.splice(index, 1);
+};
+
+const createProject = async () => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk membuat proyek');
+    return;
+  }
+  
+  if (!isProjectFormValid.value) {
+    errorToast('Nama proyek wajib diisi');
+    return;
+  }
+  
+  creatingProject.value = true;
+  
+  try {
+    const formData = new FormData();
+    formData.append('workspace_id', workspace.value.id);
+    formData.append('name', newProject.value.name.trim());
+    formData.append('description', newProject.value.description.trim());
+    formData.append('is_active', newProject.value.is_active ? '1' : '0');
+    formData.append('is_public', newProject.value.is_public ? '1' : '0');
+    
+    // Only append logo if a file is actually selected and valid
+    if (newProject.value.logoFile && 
+        newProject.value.logoFile instanceof File && 
+        newProject.value.logoFile.size > 0 &&
+        newProject.value.logoFile.type.startsWith('image/')) {
+      console.log('Appending logo file:', newProject.value.logoFile.name, newProject.value.logoFile.type, newProject.value.logoFile.size);
+      formData.append('logo', newProject.value.logoFile);
+    } else {
+      console.log('No valid logo file to append, logoFile:', newProject.value.logoFile);
+    }
+    
+    // Add members
+    newProject.value.members.forEach((member, index) => {
+      formData.append(`members[${index}][user_id]`, member.user_id);
+      formData.append(`members[${index}][project_role_id]`, member.project_role_id);
+    });
+    
+    // Debug: Log FormData contents
+    console.log('FormData contents:');
+    for (let [key, value] of formData.entries()) {
+      console.log(key, value);
+    }
+    
+    const response = await api.post('/projects', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    
+    if (response.data && response.data.success) {
+      successToast(response.data.message || 'Proyek berhasil dibuat');
+      closeCreateProjectModal();
+      
+      // Refresh projects list
+      await loadProjects(workspace.value.slug);
+      
+      // Optionally navigate to the new project
+      if (response.data.data && response.data.data.slug) {
+        router.push(`/workspaces/${workspace.value.slug}/projects/${response.data.data.slug}`);
+      }
+    } else {
+      errorToast(response.data?.message || 'Gagal membuat proyek');
+    }
+  } catch (error) {
+    console.error('Error creating project:', error);
+    const msg = error.response?.data?.message || 'Terjadi kesalahan saat membuat proyek';
+    errorToast(msg);
+  } finally {
+    creatingProject.value = false;
+  }
+};
+
 const loadNotes = async (workspaceId) => {
   try {
     const response = await noteService.list({ model_type: 'workspace', model_id: workspaceId });
@@ -1523,7 +1977,6 @@ const loadMembers = async (workspaceSlug) => {
 const loadActivities = async (workspaceSlug) => {
   try {
     const response = await workspaceService.getWorkspaceActivities(workspaceSlug);
-    console.log(response);
     activities.value = response.data.data || [];
   } catch (error) {
     console.error('Error loading activities:', error);
@@ -3140,6 +3593,165 @@ const toggleProjectMenu = (projectId) => {
   .modal-footer .btn {
     width: 100%;
     justify-content: center;
+  }
+}
+
+/* Project creation modal styles */
+.modal-large {
+  max-width: 800px;
+}
+
+/* Project form styles */
+.project-form {
+  width: 100%;
+}
+
+.form-row {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.form-left {
+  flex: 2;
+}
+
+.form-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.required {
+  color: #dc3545;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+
+/* Members section styles */
+.members-section {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--color-background);
+}
+
+.members-list-container {
+  margin-bottom: 16px;
+}
+
+.no-members {
+  text-align: center;
+  padding: 24px;
+  color: var(--color-muted);
+}
+
+.selected-members {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.member-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.member-details {
+  flex: 1;
+}
+
+.member-name {
+  font-weight: 500;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.member-email {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.member-role-select {
+  flex: 0 0 180px;
+}
+
+.member-role-select select {
+  width: 100%;
+}
+
+.btn-add-member {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-remove {
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-remove:hover {
+  background: #dc3545;
+  color: white;
+}
+
+/* Project form responsive adjustments */
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .member-row {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .member-info {
+    flex-direction: row;
+  }
+  
+  .member-role-select {
+    flex: 1;
   }
 }
 </style>

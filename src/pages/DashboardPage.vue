@@ -67,10 +67,10 @@
                 <font-awesome-icon icon="list" />
               </button>
             </div>
-            <button class="btn btn-secondary" @click="showCreateTaskModal = true">
+            <!-- <button class="btn btn-secondary" @click="showCreateTaskModal = true">
               <font-awesome-icon icon="plus" />
               Buat Tugas
-            </button>
+            </button> -->
           </div>
         </div>
 
@@ -474,10 +474,10 @@
                     </option>
                   </select>
                 </div>
-                <button class="btn btn-primary" @click="showCreateProjectModal = true">
+                <!-- <button class="btn btn-primary" @click="showCreateProjectModal = true">
                   <font-awesome-icon icon="plus" />
                   Buat Proyek
-                </button>
+                </button> -->
               </div>
             </div>
 
@@ -493,10 +493,10 @@
               <p v-else>
                 Belum ada proyek di workspace <strong>{{ getWorkspaceName(selectedWorkspaceFilter) }}</strong>
               </p>
-              <button class="btn btn-primary" @click="showCreateProjectModal = true">
+              <!-- <button class="btn btn-primary" @click="showCreateProjectModal = true">
                 <font-awesome-icon icon="plus" />
                 Buat Proyek Pertama
-              </button>
+              </button> -->
             </div>
 
             <!-- Projects Grid -->

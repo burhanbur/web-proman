@@ -4,8 +4,9 @@ export const projectService = {
     // Basic CRUD operations
     list: (params) => api.get('/projects', { params }),
     get: (slug) => api.get(`/projects/${slug}`),
-    create: (payload) => api.post('/projects', payload),
-    update: (slug, payload) => api.put(`/projects/${slug}`, payload),
+    // accept optional axios config (e.g. headers) so callers can send FormData correctly
+    create: (payload, config = {}) => api.post('/projects', payload, config),
+    update: (slug, payload, config = {}) => api.put(`/projects/${slug}`, payload, config),
     remove: (slug) => api.delete(`/projects/${slug}`),
     
     // Member management
@@ -15,4 +16,7 @@ export const projectService = {
 
     getProjectStatus: (slug) => api.get(`/projects/${slug}/status`),
     getProjectActivities: (slug, params = {}) => api.get(`/projects/${slug}/activities`, { params }),
+
+    geTemplateStatus: () => api.get('/template-status'),
+    getProjectStatus: (slug) => api.get(`/projects/${slug}/status`),
 };
