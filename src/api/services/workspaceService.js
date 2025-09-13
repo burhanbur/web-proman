@@ -24,5 +24,5 @@ export const workspaceService = {
     // Get workspace activities
     getWorkspaceActivities: (slug, params = {}) => api.get(`/workspaces/${slug}/activities`, { params }),
 
-    getWorkspaceRoles: () => api.get('/workspace-roles'),
+    getWorkspaceRoles: (slug) => api.get(`/workspace-roles/${slug}/roles/dropdown`),
 };

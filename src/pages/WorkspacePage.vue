@@ -38,7 +38,7 @@
             </div>
           </div>
           <div class="workspace-actions">
-            <button class="btn btn-secondary" @click="openInviteModal" v-show="activeTab === 'members'" :disabled="!canInviteMembers">
+            <button v-if="canInviteMembers" class="btn btn-secondary" @click="openInviteModal" v-show="activeTab === 'members'" :disabled="!canInviteMembers">
               <font-awesome-icon icon="user-plus" size="sm" />
               Undang Anggota
             </button>
@@ -73,6 +73,7 @@
             Aktivitas
           </button>
           <button 
+            v-if="canAccessSettings"
             :class="['nav-item', { active: activeTab === 'settings' }]"
             @click="activeTab = 'settings'"
           >
@@ -114,8 +115,8 @@
                     <h3 class="project-name">{{ project.name }}</h3>
                     <p v-if="project.description" class="project-description">{{ project.description }}</p>
                   </div>
-                  <div class="project-menu">
-                    <button class="btn-icon" @click.stop="toggleProjectMenu(project.id)">
+                    <div class="project-menu">
+                    <button v-if="canInviteMembers" class="btn-icon" title="Menu" @click.stop="toggleProjectMenu(project.id)">
                       <font-awesome-icon icon="ellipsis-vertical" size="sm" />
                     </button>
                   </div>
@@ -198,12 +199,13 @@
                 </div>
                 <div class="member-actions">
                   <div class="member-actions-menu">
-                    <button class="btn-icon" title="Menu" @click.stop="toggleMemberMenu(getMemberKey(member) || i)">
+                    <!-- Only show menu button and dropdown to users who can manage members -->
+                    <button v-if="canInviteMembers && !isMemberSelf(member)" class="btn-icon" title="Menu" @click.stop="toggleMemberMenu(getMemberKey(member) || i)">
                       <font-awesome-icon icon="ellipsis-vertical" size="sm" />
                     </button>
-                    <div v-if="menuOpenFor === (getMemberKey(member) || i)" class="member-menu-dropdown" @click.stop>
-                      <button class="dropdown-item" @click="openEditMemberModal(member)" v-if="canInviteMembers">Edit Peran</button>
-                      <button class="dropdown-item text-danger" @click="openRemoveMemberModal(member)" v-if="canInviteMembers">Hapus</button>
+                    <div v-if="canInviteMembers && !isMemberSelf(member) && menuOpenFor === (getMemberKey(member) || i)" class="member-menu-dropdown" @click.stop>
+                      <button class="dropdown-item" @click="openEditMemberModal(member)">Edit Peran</button>
+                      <button class="dropdown-item text-danger" @click="openRemoveMemberModal(member)">Hapus</button>
                     </div>
                   </div>
                 </div>
@@ -266,6 +268,11 @@
 
           <!-- Settings Tab -->
           <div v-if="activeTab === 'settings'" class="settings-tab">
+            <div v-if="!canAccessSettings" class="settings-noaccess">
+              <h3>Akses Ditolak</h3>
+              <p class="muted">Hanya Owner workspace atau Admin sistem yang dapat mengubah pengaturan ini.</p>
+            </div>
+            <div v-else>
             <div class="settings-section">
               <h3>Pengaturan Workspace</h3>
                       <p>Kelola preferensi dan konfigurasi workspace</p>
@@ -370,6 +377,7 @@
               </div>
             </div>
           </div>
+          </div>
 
           <!-- Notes Tab -->
           <div v-if="activeTab === 'notes'" class="notes-tab">
@@ -423,8 +431,8 @@
       </div>
     </div>
 
-    <!-- Error State -->
-    <div v-else class="error-state">
+  <!-- Error State -->
+  <div v-if="!workspace && !loading" class="error-state">
       <font-awesome-icon icon="exclamation-triangle" size="3x" class="error-icon" />
       <h3>Workspace tidak ditemukan</h3>
       <p>Workspace yang Anda cari tidak ada atau Anda tidak memiliki akses.</p>
@@ -694,6 +702,29 @@
       </div>
     </div>
 
+    <!-- Generic Confirm Modal -->
+    <div v-if="showConfirmModal" class="modal-overlay" @click="closeConfirm">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>{{ confirmTitle }}</h3>
+          <button class="btn-close" @click="closeConfirm">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>{{ confirmMessage }}</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeConfirm" :disabled="confirmLoading">Batal</button>
+          <button class="btn btn-danger" @click="handleConfirm" :disabled="confirmLoading">
+            <font-awesome-icon v-if="confirmLoading" icon="spinner" spin />
+            <font-awesome-icon v-else icon="check" />
+            {{ confirmLoading ? 'Proses...' : 'Konfirmasi' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -743,6 +774,89 @@ const canDeleteWorkspace = computed(() => {
   return isCreator || isSysAdmin;
 });
 
+// Generic confirm modal state & handler
+const showConfirmModal = ref(false);
+const confirmTitle = ref('');
+const confirmMessage = ref('');
+const confirmAction = ref('');
+const confirmPayload = ref(null);
+const confirmLoading = ref(false);
+
+const openConfirm = ({ title = 'Konfirmasi', message = '', action = '', payload = null } = {}) => {
+  confirmTitle.value = title;
+  confirmMessage.value = message;
+  confirmAction.value = action;
+  confirmPayload.value = payload;
+  showConfirmModal.value = true;
+};
+
+const closeConfirm = () => {
+  showConfirmModal.value = false;
+  confirmTitle.value = '';
+  confirmMessage.value = '';
+  confirmAction.value = '';
+  confirmPayload.value = null;
+  confirmLoading.value = false;
+};
+
+const handleConfirm = async () => {
+  if (!confirmAction.value) { closeConfirm(); return; }
+  confirmLoading.value = true;
+  try {
+    if (confirmAction.value === 'removeLogo') {
+      // call existing remove logo API flow
+      savingSettings.value = true;
+      const slug = workspace.value?.slug;
+      const res = await workspaceService.removeLogo(slug);
+      if (res.data && res.data.success) {
+        successToast(res.data.message || 'Logo berhasil dihapus');
+        await loadWorkspace();
+        fillSettingsFromWorkspace();
+      } else {
+        errorToast(res.data?.message || 'Gagal menghapus logo');
+      }
+      savingSettings.value = false;
+    } else if (confirmAction.value === 'deleteNote') {
+      const noteId = confirmPayload.value?.noteId;
+      if (!noteId) { errorToast('Note ID tidak ditemukan'); return; }
+      const res = await noteService.remove(noteId);
+      if (res.data && res.data.success) {
+        notes.value = notes.value.filter(n => n.id !== noteId);
+        successToast(res.data.message || 'Catatan dihapus');
+      } else {
+        errorToast(res.data?.message || 'Gagal menghapus catatan');
+      }
+    } else if (confirmAction.value === 'removeMember') {
+      const userId = confirmPayload.value?.userId;
+      if (!userId) { errorToast('Target anggota tidak ditemukan'); return; }
+      removingMember.value = true;
+      try {
+        const slug = workspace.value.slug;
+        const payload = { user_id: userId, workspace_id: workspace.value.id };
+        const res = await workspaceService.removeMember(slug, payload);
+        if (res.data && res.data.success) {
+          successToast(res.data.message || 'Anggota dihapus');
+          await loadMembers(slug);
+          showRemoveMemberModal.value = false;
+        } else {
+          errorToast(res.data?.message || 'Gagal menghapus anggota');
+        }
+      } catch (err) {
+        console.error('Error removing member (confirm):', err);
+        errorToast(err.response?.data?.message || 'Terjadi kesalahan saat menghapus anggota');
+      } finally {
+        removingMember.value = false;
+      }
+    }
+  } catch (err) {
+    console.error('Error handling confirm action:', err);
+    errorToast('Terjadi kesalahan');
+  } finally {
+    confirmLoading.value = false;
+    closeConfirm();
+  }
+};
+
 // Permission helpers for inviting members
 const isSysAdmin = computed(() => {
   const user = authStore.user;
@@ -762,8 +876,19 @@ const currentWorkspaceRole = computed(() => {
 const canInviteMembers = computed(() => {
   if (!authStore.user) return false;
   if (isSysAdmin.value) return true;
-  const role = (currentWorkspaceRole.value || '').toLowerCase();
-  return role === 'workspace_owner' || role === 'workspace_admin';
+  const roleRaw = currentWorkspaceRole.value || '';
+  const role = String(roleRaw).toLowerCase();
+  // Accept common variants (e.g. 'Owner', 'Workspace Owner', 'workspace_owner')
+  // and admin variants. This ensures UX gating works across different API shapes.
+  return role.includes('owner') || role.includes('admin') || role === 'workspace_owner' || role === 'workspace_admin';
+});
+
+// Only workspace owner (or system admin) can access Settings
+const canAccessSettings = computed(() => {
+  if (isSysAdmin.value) return true;
+  const role = (currentWorkspaceRole.value || '')?.toString().toLowerCase() || '';
+  // accept variants that include 'owner'
+  return role.includes('owner');
 });
 
 // Invite members state
@@ -779,6 +904,10 @@ const showSearchResults = ref(false);
 let searchTimeout = null;
 
 const openInviteModal = () => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk mengundang anggota');
+    return;
+  }
   inviteUserId.value = '';
   inviteRoleId.value = '';
   // fetch users and workspace roles when opening
@@ -793,6 +922,10 @@ const closeInviteModal = () => {
 };
 
 const sendInvite = async () => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk mengundang anggota');
+    return;
+  }
   if (!inviteUserId.value || !inviteRoleId.value) {
     errorToast('Pilih pengguna dan peran');
     return;
@@ -875,7 +1008,7 @@ const fetchUsers = async () => {
 
 const fetchWorkspaceRoles = async () => {
   try {
-    const res = await workspaceService.getWorkspaceRoles();
+    const res = await workspaceService.getWorkspaceRoles(workspace.value.slug);
     workspaceRoles.value = res.data.data || [];
   } catch (error) {
     console.error('Error fetching workspace roles:', error);
@@ -990,29 +1123,12 @@ const handleRemoveLogoClick = async () => {
     return;
   }
 
-  // Ask for confirmation before calling API to immediately remove stored logo
-  const ok = confirm('Hapus logo workspace ini? Tindakan ini akan menghapus file dari penyimpanan.');
-  if (!ok) return;
-
-  try {
-    savingSettings.value = true;
-    const slug = workspace.value?.slug;
-    const res = await workspaceService.removeLogo(slug);
-    if (res.data && res.data.success) {
-      successToast(res.data.message || 'Logo berhasil dihapus');
-      // Reload workspace to reflect changes
-      await loadWorkspace();
-      // reset local settings state
-      fillSettingsFromWorkspace();
-    } else {
-      errorToast(res.data?.message || 'Gagal menghapus logo');
-    }
-  } catch (err) {
-    console.error('Error removing logo:', err);
-    errorToast(err.response?.data?.message || 'Terjadi kesalahan saat menghapus logo');
-  } finally {
-    savingSettings.value = false;
-  }
+  // Open confirm modal instead of native confirm
+  openConfirm({
+    title: 'Hapus Logo',
+    message: 'Hapus logo workspace ini? Tindakan ini akan menghapus file dari penyimpanan.',
+    action: 'removeLogo'
+  });
 };
 
 const saveWorkspaceSettings = async () => {
@@ -1068,6 +1184,14 @@ const showRemoveMemberModal = ref(false);
 const removingMember = ref(false);
 
 const openEditMemberModal = async (member) => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk mengubah peran anggota');
+    return;
+  }
+  if (isMemberSelf(member)) {
+    errorToast('Anda tidak dapat mengubah peran akun Anda sendiri');
+    return;
+  }
   editMember.value = member;
   // ensure roles available
   if (!workspaceRoles.value || workspaceRoles.value.length === 0) await fetchWorkspaceRoles();
@@ -1077,6 +1201,10 @@ const openEditMemberModal = async (member) => {
 };
 
 const updateMemberRole = async () => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk mengubah peran anggota');
+    return;
+  }
   if (!editMember.value) return;
   if (!editMemberWorkspaceRoleId.value) { errorToast('Pilih peran'); return; }
   updatingMember.value = true;
@@ -1100,29 +1228,33 @@ const updateMemberRole = async () => {
 };
 
 const openRemoveMemberModal = (member) => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk menghapus anggota');
+    return;
+  }
+  if (isMemberSelf(member)) {
+    errorToast('Anda tidak dapat menghapus akun Anda sendiri dari workspace');
+    return;
+  }
+  // prefer confirm modal for destructive action; still keep the remove member modal flow
   removeMemberTarget.value = member;
-  showRemoveMemberModal.value = true;
+  openConfirm({
+    title: 'Hapus Anggota',
+    message: `Hapus anggota ${member?.name || member?.email || ''} dari workspace ini?`,
+    action: 'removeMember',
+    payload: { userId: getMemberKey(member) }
+  });
 };
 
 const confirmRemoveMember = async () => {
-  if (!removeMemberTarget.value) return;
-  removingMember.value = true;
-  try {
-    const slug = workspace.value.slug;
-  const payload = { user_id: removeMemberTarget.value.id || removeMemberTarget.value.user_id || removeMemberTarget.value.user?.id, workspace_id: workspace.value.id };
-  const res = await workspaceService.removeMember(slug, payload);
-    if (res.data && res.data.success) {
-      successToast(res.data.message || 'Anggota dihapus');
-      await loadMembers(slug);
-      showRemoveMemberModal.value = false;
-    } else {
-      errorToast(res.data?.message || 'Gagal menghapus anggota');
-    }
-  } catch (error) {
-    console.error('Error removing member:', error);
-    errorToast(error.response?.data?.message || 'Terjadi kesalahan');
-  } finally {
-    removingMember.value = false;
+  // This flow is now handled centrally by the confirm modal (handleConfirm)
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk menghapus anggota');
+    return;
+  }
+  // If the removal was triggered from the modal, ensure payload exists and call handleConfirm
+  if (confirmAction.value === 'removeMember') {
+    await handleConfirm();
   }
 };
 
@@ -1172,7 +1304,6 @@ const loadWorkspace = async () => {
     // Load workspace details
     const workspaceResponse = await workspaceService.get(workspaceSlug);
     workspace.value = workspaceResponse.data.data;
-    console.log('Workspace response:', workspace.value);
     workspaceId.value = workspace.value.id;
 
     // Load notes
@@ -1280,19 +1411,13 @@ const createNote = async () => {
 };
 
 const deleteNote = async (noteId) => {
-  if (!confirm('Hapus catatan ini?')) return;
-  try {
-    const res = await noteService.remove(noteId);
-    if (res.data && res.data.success) {
-      notes.value = notes.value.filter(n => n.id !== noteId);
-      successToast(res.data.message || 'Catatan dihapus');
-    } else {
-      errorToast(res.data.message || 'Gagal menghapus catatan');
-    }
-  } catch (error) {
-    console.error('Error deleting note:', error);
-    errorToast('Terjadi kesalahan saat menghapus catatan');
-  }
+  // open confirm modal (action will call confirm handler)
+  openConfirm({
+    title: 'Hapus Catatan',
+    message: 'Hapus catatan ini?',
+    action: 'deleteNote',
+    payload: { noteId }
+  });
 };
 
 const formatFileSize = (size) => {
@@ -1398,6 +1523,7 @@ const loadMembers = async (workspaceSlug) => {
 const loadActivities = async (workspaceSlug) => {
   try {
     const response = await workspaceService.getWorkspaceActivities(workspaceSlug);
+    console.log(response);
     activities.value = response.data.data || [];
   } catch (error) {
     console.error('Error loading activities:', error);
@@ -1417,6 +1543,14 @@ const getMemberInitials = (name) => {
 const getMemberKey = (member) => {
   if (!member) return null;
   return member.id || member.user_id || member.user?.id || null;
+};
+
+// Check if a member entry corresponds to the currently authenticated user
+const isMemberSelf = (member) => {
+  const user = authStore.user;
+  if (!user || !member) return false;
+  const mid = getMemberKey(member);
+  return String(mid) === String(user.id) || String(member.email || member.user?.email) === String(user.email);
 };
 
 // Check if a user object is already a member of the workspace
