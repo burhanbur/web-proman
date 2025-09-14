@@ -17,9 +17,10 @@ export const projectService = {
     // Member management
     addMember: (slug, payload) => api.post(`/projects/${slug}/users`, payload),
     updateMember: (slug, payload) => api.put(`/projects/${slug}/users`, payload),
-    removeMember: (slug, payload) => api.delete(`/projects/${slug}/users`, payload),
+    removeMember: (slug, payload) => api.delete(`/projects/${slug}/users`, { data: payload }),
 
     getProjectActivities: (slug, params = {}) => api.get(`/projects/${slug}/activities`, { params }),
+    getProjectAttachments: (slug, params = {}) => api.get(`/projects/${slug}/attachments`, { params }),
     
     // Status management for project (create, update, delete)
     getProjectStatus: (slug) => api.get(`/projects/${slug}/status`),
@@ -30,4 +31,5 @@ export const projectService = {
     updateStatusOrder: (slug, payload) => api.put(`/projects/${slug}/status/order`, payload),
 
     getTemplateStatus: () => api.get('/template-status'),
+    getProjectRoles: (slug) => api.get(`/project-roles/${slug}/roles/dropdown`),
 };

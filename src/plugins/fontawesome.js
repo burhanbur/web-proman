@@ -86,7 +86,11 @@ import {
   faStar,
   faUserSlash,
   faBuilding,
-  faEllipsisH
+  faLink,
+  faFile,
+  faEllipsisH,
+  faFilePdf,
+  faExternalLinkAlt
 } from '@fortawesome/free-solid-svg-icons';
 
 // Add icons to the library
@@ -177,5 +181,9 @@ library.add(
   faStar,
   faUserSlash,
   faBuilding,
+  faLink,
+  faFile,
+  faFilePdf,
+  faExternalLinkAlt,
   faEllipsisH
 );

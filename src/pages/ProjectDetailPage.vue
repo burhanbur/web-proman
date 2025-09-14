@@ -85,13 +85,7 @@
           <font-awesome-icon icon="list" size="sm" />
           Daftar
         </button>
-        <button 
-          :class="['nav-item', { active: activeView === 'timeline' }]"
-          @click="activeView = 'timeline'"
-        >
-          <font-awesome-icon icon="calendar" size="sm" />
-          Linimasa
-        </button>
+        <!-- Timeline tab removed per request -->
         <button 
           :class="['nav-item', { active: activeView === 'files' }]"
           @click="activeView = 'files'"
@@ -329,30 +323,15 @@
           </div>
         </div>
 
-        <!-- Timeline View -->
-        <div v-if="activeView === 'timeline'" class="timeline-view">
-            <div class="timeline-placeholder">
-            <font-awesome-icon icon="calendar" size="3x" class="placeholder-icon" />
-            <h3>Linimasa</h3>
-            <p>Linimasa akan ditampilkan di sini</p>
-          </div>
-        </div>
+        <!-- Timeline view removed -->
 
-        <!-- Files View -->
-        <div v-if="activeView === 'files'" class="files-view">
-          <div class="files-placeholder">
-            <font-awesome-icon icon="folder" size="3x" class="placeholder-icon" />
-            <h3>Berkas Proyek</h3>
-            <p>Manajemen berkas akan ditampilkan di sini</p>
-          </div>
-        </div>
 
+        <!-- Members Tab -->
         <div v-if="activeView === 'members'" class="members-view">
-
           <div class="members-header">
-            <h3>Anggota</h3>
-            <div>
-              <button class="btn btn-primary" @click="showInviteModal = true">
+            <h3>Anggota Proyek</h3>
+            <div v-if="canInviteMembers">
+              <button class="btn btn-primary" @click="openInviteModal">
                 <font-awesome-icon icon="plus" />
                 Undang Anggota
               </button>
@@ -360,8 +339,10 @@
           </div>
 
           <div class="members-list">
-            <div v-if="!projectMembers.length" class="empty-activities">
-              <p>Tidak ada anggota pada proyek ini.</p>
+            <div v-if="!projectMembers.length" class="empty-state">
+              <font-awesome-icon icon="users" size="3x" class="empty-icon" />
+              <h3>Belum ada anggota</h3>
+              <p>Undang anggota untuk berkolaborasi dalam proyek ini.</p>
             </div>
 
             <div v-for="member in projectMembers" :key="member.id" class="member-item">
@@ -370,24 +351,36 @@
                   <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
                   <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
                 </div>
-
-                <div class="member-meta">
+                <div class="member-details">
                   <div class="member-name">{{ member.name }}</div>
                   <div class="member-email">{{ member.email }}</div>
-                  <div class="member-role" v-if="getMemberRole(member)">
-                    <span class="role-badge">{{ getMemberRole(member) }}</span>
+                  <div class="member-role">
+                    <span class="role-badge" :class="(getMemberRole(member) || '').toLowerCase()">
+                      {{ getMemberRole(member) || 'Anggota' }}
+                    </span>
                   </div>
                 </div>
               </div>
-
               <div class="member-actions">
-                <button
-                  class="btn btn-danger"
-                  @click="removeMember(member)"
-                  :disabled="member.id === authStore.user?.id"
-                  title="Hapus anggota">
-                  Hapus
-                </button>
+                <div class="member-actions-menu">
+                  <button class="btn-icon" @click="toggleMemberMenu(member.id)" :aria-expanded="menuOpenFor === member.id">
+                    <font-awesome-icon icon="ellipsis-vertical" size="sm" />
+                  </button>
+                  <div v-if="menuOpenFor === member.id" class="member-menu-dropdown">
+                    <button class="dropdown-item" @click="openEditMemberModal(member)" v-if="canManageMembers">
+                      <font-awesome-icon icon="edit" />
+                      Edit Role
+                    </button>
+                    <button 
+                      class="dropdown-item text-danger" 
+                      @click="openRemoveMemberModal(member)"
+                      v-if="canRemoveMember(member)"
+                    >
+                      <font-awesome-icon icon="trash" />
+                      Hapus Anggota
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -473,31 +466,165 @@
                 <p>Tambahkan catatan untuk berkomunikasi dengan tim Anda.</p>
               </div>
 
-              <div v-else class="note-card" v-for="note in notes" :key="note.id">
-                <div class="note-header">
-                  <div class="note-author">
-                    <strong>{{ note.created_by?.name || note.created_by?.email || 'Pengguna' }}</strong>
-                    <span class="note-meta">• {{ formatDateTime(note.created_at) }}</span>
+              <div v-else>
+                <div class="note-card" v-for="note in notes" :key="note.id">
+                  <div class="note-header">
+                    <div class="note-author">
+                      <strong>{{ note.created_by?.name || note.created_by?.email || 'Pengguna' }}</strong>
+                      <span class="note-meta">• {{ formatDateTime(note.created_at) }}</span>
+                    </div>
+                    <div class="note-actions">
+                      <button v-if="authStore.user && authStore.user.id === note.created_by?.id" class="btn-icon" @click="deleteNote(note.id)">
+                        <font-awesome-icon icon="trash" size="sm" />
+                      </button>
+                    </div>
                   </div>
-                  <div class="note-actions">
-                    <button v-if="authStore.user && authStore.user.id === note.created_by?.id" class="btn-icon" @click="deleteNote(note.id)">
-                      <font-awesome-icon icon="trash" size="sm" />
-                    </button>
+
+                  <div class="note-body">
+                    <p>{{ note.content }}</p>
+
+                    <div v-if="note.attachments && note.attachments.length" class="note-attachments">
+                      <h4>Lampiran ({{ note.attachments_count || note.attachments.length }})</h4>
+                      <ul>
+                        <li v-for="att in note.attachments" :key="att.attachment_id">
+                          <a :href="`/storage/${att.file_path}`" target="_blank" rel="noopener noreferrer">{{ att.original_filename }}</a>
+                          <small class="muted"> — {{ att.mime_type }} • {{ formatFileSize(att.file_size) }}</small>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Files / Berkas View -->
+        <div v-if="activeView === 'files'" class="files-view">
+          <!-- Files Header -->
+          <div class="files-header">
+            <div class="files-header-content">
+              <div class="files-title-section">
+                <h3 class="files-title">Berkas Proyek</h3>
+                <p class="files-subtitle">
+                  {{ attachmentsList.length }} berkas • Semua lampiran dari proyek ini
+                </p>
+              </div>
+              <div class="files-controls">
+                <div class="search-box">
+                  <font-awesome-icon icon="search" class="search-icon" />
+                  <input 
+                    type="text" 
+                    v-model="fileSearchQuery"
+                    placeholder="Cari berkas..." 
+                    class="search-input"
+                  />
+                </div>
+                <select v-model="fileTypeFilter" class="type-filter">
+                  <option value="">Semua</option>
+                  <option value="image">Gambar</option>
+                  <option value="document">Dokumen</option>
+                  <option value="archive">Arsip</option>
+                  <option value="other">Lainnya</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Files Content -->
+          <div class="files-content">
+            <!-- Loading State -->
+            <div v-if="loadingAttachments" class="files-loading">
+              <div class="loading-spinner"></div>
+              <p>Memuat berkas...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else-if="filteredAttachments.length === 0" class="files-empty">
+              <div class="empty-icon">
+                <font-awesome-icon icon="folder-open" size="2x" />
+              </div>
+              <h4 class="empty-title">
+                {{ attachmentsList.length === 0 ? 'Belum ada berkas' : 'Tidak ditemukan' }}
+              </h4>
+              <p class="empty-text">
+                {{ attachmentsList.length === 0 
+                  ? 'Berkas akan muncul di sini ketika ditambahkan ke tugas atau komentar.' 
+                  : 'Coba ubah kata kunci atau filter untuk menemukan berkas.' 
+                }}
+              </p>
+              <button v-if="fileSearchQuery || fileTypeFilter" @click="clearFilters" class="btn btn-outline">
+                Hapus Filter
+              </button>
+            </div>
+
+            <!-- Files Grid -->
+            <div v-else class="files-grid">
+              <div 
+                v-for="file in filteredAttachments" 
+                :key="file.uuid"
+                class="file-card"
+                @click="previewFile(file)"
+              >
+                <!-- File Preview -->
+                <div class="file-preview">
+                  <img 
+                    v-if="isImageFile(file)"
+                    :src="file.file_url || `/storage/${file.file_path}`" 
+                    :alt="file.original_filename"
+                    @error="handleImageError"
+                    class="file-image"
+                  />
+                  <div v-else class="file-icon">
+                    <font-awesome-icon 
+                      :icon="getFileIcon(file)" 
+                      size="2x"
+                      :class="getFileTypeClass(file)"
+                    />
                   </div>
                 </div>
 
-                <div class="note-body">
-                  <p>{{ note.content }}</p>
-
-                  <div v-if="note.attachments && note.attachments.length" class="note-attachments">
-                    <h4>Lampiran ({{ note.attachments_count || note.attachments.length }})</h4>
-                    <ul>
-                      <li v-for="att in note.attachments" :key="att.attachment_id">
-                        <a :href="`/storage/${att.file_path}`" target="_blank" rel="noopener noreferrer">{{ att.original_filename }}</a>
-                        <small class="muted"> — {{ att.mime_type }} • {{ formatFileSize(att.file_size) }}</small>
-                      </li>
-                    </ul>
+                <!-- File Info -->
+                <div class="file-info">
+                  <h4 class="file-name" :title="file.original_filename">
+                    {{ file.original_filename }}
+                  </h4>
+                  <div class="file-details">
+                    <span class="file-size">{{ formatFileSize(file.file_size) }}</span>
+                    <span class="file-type">{{ getFileTypeLabel(file.mime_type) }}</span>
                   </div>
+                </div>
+
+                <!-- File Actions (left) + Source Badge (right) -->
+                <div class="file-actions" @click.stop>
+                  <div class="action-group">
+                    <button
+                      @click="previewFile(file)"
+                      class="action-btn"
+                      title="Buka berkas"
+                    >
+                      <font-awesome-icon icon="external-link-alt" />
+                    </button>
+                    <a
+                      :href="file.download_url || file.file_url || `/storage/${file.file_path}`"
+                      download
+                      class="action-btn"
+                      title="Unduh berkas"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <font-awesome-icon icon="download" />
+                    </a>
+                    <button
+                      @click="copyFileLink(file)"
+                      class="action-btn"
+                      title="Salin link"
+                    >
+                      <font-awesome-icon icon="link" />
+                    </button>
+                  </div>
+                  <span v-if="getFileSourceLabel(file)" class="file-source-badge">{{ getFileSourceLabel(file) }}</span>
                 </div>
               </div>
             </div>
@@ -688,8 +815,8 @@
       </div>
     </div>
 
-    <!-- Error State -->
-    <div v-else class="error-state">
+  <!-- Error State -->
+  <div v-if="!loading && !project" class="error-state">
       <font-awesome-icon icon="exclamation-triangle" size="3x" class="error-icon" />
       <h3>Proyek tidak ditemukan</h3>
       <p>Proyek yang Anda cari tidak ada atau Anda tidak memiliki akses.</p>
@@ -797,16 +924,171 @@
         </div>
       </div>
     </div>
-  </div>
+
+    <!-- Invite Members Modal -->
+    <div v-if="showInviteModal" class="modal-overlay" @click="closeInviteModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Undang Anggota</h3>
+          <button class="btn-close" @click="closeInviteModal">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Cari Pengguna</label>
+            <div class="autocomplete">
+              <input
+                type="text"
+                v-model="inviteSearch"
+                @input="onSearchInput"
+                placeholder="Ketik nama atau email pengguna..."
+                class="form-input"
+              />
+              <div v-if="showSearchResults" class="autocomplete-list">
+                <div v-if="isSearching" class="autocomplete-empty">
+                  <font-awesome-icon icon="spinner" spin /> Mencari...
+                </div>
+                <div v-else-if="!users.length" class="autocomplete-empty">
+                  Tidak ada pengguna ditemukan
+                </div>
+                <div v-else>
+                  <div
+                    v-for="user in users.slice(0, 5)"
+                    :key="user.id"
+                    class="autocomplete-item"
+                    :class="{ disabled: isUserMember(user) }"
+                    @click="selectUser(user)"
+                  >
+                    <div class="autocomplete-item-main">{{ user.name }}</div>
+                    <div class="autocomplete-item-note">
+                      {{ user.email }}
+                      <span v-if="isUserMember(user)" class="text-muted"> (Sudah anggota)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" v-if="projectRoles.length">
+            <label class="form-label">Role</label>
+            <select v-model="inviteRoleId" class="form-input">
+              <option value="">Pilih role...</option>
+              <option v-for="role in projectRoles" :key="role.id" :value="role.id">
+                {{ role.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeInviteModal">Batal</button>
+          <button 
+            class="btn btn-primary" 
+            :disabled="inviting || !inviteUserId || !inviteRoleId" 
+            @click="sendInvite"
+          >
+            <font-awesome-icon v-if="inviting" icon="spinner" spin />
+            <font-awesome-icon v-else icon="user-plus" />
+            {{ inviting ? 'Mengundang...' : 'Undang' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Member Modal -->
+    <div v-if="showEditMemberModal" class="modal-overlay" @click="closeEditMemberModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Edit Role Anggota</h3>
+          <button class="btn-close" @click="closeEditMemberModal">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div v-if="editMember" class="member-preview">
+            <div class="member-avatar">
+              <img v-if="editMember.avatar" :src="editMember.avatar" :alt="editMember.name" />
+              <div v-else class="member-avatar-fallback">{{ getMemberInitials(editMember.name) }}</div>
+            </div>
+            <div class="member-details">
+              <div class="member-name">{{ editMember.name }}</div>
+              <div class="member-email">{{ editMember.email }}</div>
+            </div>
+          </div>
+
+          <div class="form-group" v-if="projectRoles.length">
+            <label class="form-label">Role Baru</label>
+            <select v-model="editMemberProjectRoleId" class="form-input">
+              <option value="">Pilih role...</option>
+              <option v-for="role in projectRoles" :key="role.id" :value="role.id">
+                {{ role.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeEditMemberModal">Batal</button>
+          <button 
+            class="btn btn-primary" 
+            :disabled="updatingMember || !editMemberProjectRoleId" 
+            @click="updateMemberRole"
+          >
+            <font-awesome-icon v-if="updatingMember" icon="spinner" spin />
+            <font-awesome-icon v-else icon="save" />
+            {{ updatingMember ? 'Menyimpan...' : 'Simpan' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remove Member Modal -->
+    <div v-if="showRemoveMemberModal" class="modal-overlay" @click="closeRemoveMemberModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>Hapus Anggota</h3>
+          <button class="btn-close" @click="closeRemoveMemberModal">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div v-if="removeMemberTarget" class="member-preview">
+            <div class="member-avatar">
+              <img v-if="removeMemberTarget.avatar" :src="removeMemberTarget.avatar" :alt="removeMemberTarget.name" />
+              <div v-else class="member-avatar-fallback">{{ getMemberInitials(removeMemberTarget.name) }}</div>
+            </div>
+            <div class="member-details">
+              <div class="member-name">{{ removeMemberTarget.name }}</div>
+              <div class="member-email">{{ removeMemberTarget.email }}</div>
+            </div>
+          </div>
+          <p class="text-danger">Apakah Anda yakin ingin menghapus anggota ini dari proyek?</p>
+          <p class="text-muted">Anggota akan kehilangan akses ke proyek ini dan semua tugasnya.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeRemoveMemberModal">Batal</button>
+          <button 
+            class="btn btn-danger" 
+            :disabled="removingMember" 
+            @click="confirmRemoveMember"
+          >
+            <font-awesome-icon v-if="removingMember" icon="spinner" spin />
+            <font-awesome-icon v-else icon="trash" />
+            {{ removingMember ? 'Menghapus...' : 'Hapus Anggota' }}
+          </button>
+        </div>
+      </div>
+    </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { projectService } from '@/api/services/projectService';
 import { taskService } from '@/api/services/taskService';
 import { workspaceService } from '@/api/services/workspaceService';
 import { noteService } from '@/api/services/noteService';
+import { userService } from '@/api/services/userService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
 
@@ -821,6 +1103,8 @@ const workspace = ref(null);
 const tasks = ref([]);
 const activities = ref([]);
 const loadingActivities = ref(false);
+const attachmentsList = ref([]);
+const loadingAttachments = ref(false);
 const taskStatuses = ref([]);
 const activeView = ref('board');
 const showInviteModal = ref(false);
@@ -850,15 +1134,69 @@ const filterStatus = ref('');
 const filterAssignee = ref('');
 const filterPriority = ref('');
 
+// Member management state
+const users = ref([]);
+const projectRoles = ref([]);
+const inviteUserId = ref('');
+const inviteRoleId = ref('');
+const inviting = ref(false);
+const inviteSearch = ref('');
+const isSearching = ref(false);
+const showSearchResults = ref(false);
+let searchTimeout = null;
+
+// Edit member state  
+const editMember = ref(null);
+const showEditMemberModal = ref(false);
+const editMemberProjectRoleId = ref(null);
+const updatingMember = ref(false);
+
+// Remove member state
+const removeMemberTarget = ref(null);
+const showRemoveMemberModal = ref(false);
+const removingMember = ref(false);
+
+// Member menu state
+const menuOpenFor = ref(null);
+
+// Files view state
+const fileSearchQuery = ref('');
+const fileTypeFilter = ref('');
+
 // Load data on mount
 onMounted(async () => {
   await loadProject();
   await loadTaskStatuses();
-  if (activeView.value === 'activities') {
-    await loadActivities();
-  }
+  await loadActivities();
+  await loadAttachments(route.params.projectSlug || project.value?.slug);
   loading.value = false;
+  
+  // Add document click listener for closing member menus
+  document.addEventListener('click', handleDocumentClick);
 });
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick);
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+});
+
+// Handle document clicks to close member menus
+const handleDocumentClick = (event) => {
+  const memberMenus = document.querySelectorAll('.member-actions-menu');
+  let clickedInsideMenu = false;
+  
+  memberMenus.forEach(menu => {
+    if (menu.contains(event.target)) {
+      clickedInsideMenu = true;
+    }
+  });
+  
+  if (!clickedInsideMenu) {
+    menuOpenFor.value = null;
+  }
+};
 
 // Watch for activeView changes to load activities and notes when needed
 watch(activeView, async (newView) => {
@@ -867,6 +1205,9 @@ watch(activeView, async (newView) => {
   }
   if (newView === 'notes' && notes.value.length === 0 && project.value) {
     await loadNotes(project.value.id);
+  }
+  if (newView === 'files' && attachmentsList.value.length === 0 && project.value) {
+    await loadAttachments(project.value.slug);
   }
 });
 
@@ -939,6 +1280,36 @@ const loadActivities = async () => {
   }
 };
 
+// Load project attachments
+const loadAttachments = async (projectSlug) => {
+  loadingAttachments.value = true;
+  try {
+    // If no slug provided, try route param or project value
+    let slug = projectSlug || route.params.projectSlug || project.value?.slug;
+    if (!slug && project.value?.slug) slug = project.value.slug;
+    if (!slug) {
+      // Wait briefly for project to load if possible
+      await nextTick();
+      slug = route.params.projectSlug || project.value?.slug;
+    }
+
+    if (!slug) {
+      throw new Error('Project slug tidak tersedia');
+    }
+
+    const response = await projectService.getProjectAttachments(slug);
+    attachmentsList.value = response.data.data || [];
+  } catch (error) {
+    console.error('Error loading attachments:', error);
+    // Do not spam toast for expected race conditions
+    if (error && error.message !== 'Project slug tidak tersedia') {
+      errorToast('Gagal memuat berkas proyek');
+    }
+  } finally {
+    loadingAttachments.value = false;
+  }
+};
+
 // Computed properties
 const filteredTasks = computed(() => {
   let filtered = tasks.value;
@@ -957,6 +1328,65 @@ const filteredTasks = computed(() => {
     filtered = filtered.filter(task => {
       const p = (task.priority?.name || task.priority || '').toString().toLowerCase();
       return p === filterPriority.value.toString().toLowerCase();
+    });
+  }
+  
+  return filtered;
+});
+
+// Filtered attachments for Files view
+const filteredAttachments = computed(() => {
+  let filtered = attachmentsList.value;
+  
+  // Filter by search query
+  if (fileSearchQuery.value) {
+    const query = fileSearchQuery.value.toLowerCase();
+    filtered = filtered.filter(file => 
+      file.original_filename?.toLowerCase().includes(query) ||
+      file.mime_type?.toLowerCase().includes(query)
+    );
+  }
+  
+  // Filter by file type
+  if (fileTypeFilter.value) {
+    filtered = filtered.filter(file => {
+      const mimeType = file.mime_type?.toLowerCase() || '';
+      switch (fileTypeFilter.value) {
+        case 'image':
+          return mimeType.startsWith('image/');
+        case 'document':
+          return mimeType.includes('pdf') || 
+                 mimeType.includes('document') ||
+                 mimeType.includes('text') ||
+                 mimeType.includes('word') ||
+                 mimeType.includes('excel') ||
+                 mimeType.includes('powerpoint') ||
+                 mimeType.includes('sheet') ||
+                 mimeType.includes('presentation');
+        case 'archive':
+          return mimeType.includes('zip') ||
+                 mimeType.includes('rar') ||
+                 mimeType.includes('tar') ||
+                 mimeType.includes('gz') ||
+                 mimeType.includes('7z');
+        case 'other':
+          return !mimeType.startsWith('image/') &&
+                 !mimeType.includes('pdf') &&
+                 !mimeType.includes('document') &&
+                 !mimeType.includes('text') &&
+                 !mimeType.includes('word') &&
+                 !mimeType.includes('excel') &&
+                 !mimeType.includes('powerpoint') &&
+                 !mimeType.includes('sheet') &&
+                 !mimeType.includes('presentation') &&
+                 !mimeType.includes('zip') &&
+                 !mimeType.includes('rar') &&
+                 !mimeType.includes('tar') &&
+                 !mimeType.includes('gz') &&
+                 !mimeType.includes('7z');
+        default:
+          return true;
+      }
     });
   }
   
@@ -1000,6 +1430,152 @@ const formatDueDate = (dateString) => {
   if (diffDays === -1) return 'Kemarin';
   if (diffDays > 0) return `${diffDays} hari lagi`;
   return `${Math.abs(diffDays)} hari yang lalu`;
+};
+
+// File helpers
+const isImageFile = (file) => {
+  return file.mime_type?.startsWith('image/') || false;
+};
+
+const getFileIcon = (file) => {
+  const mimeType = file.mime_type?.toLowerCase() || '';
+  
+  if (mimeType.startsWith('image/')) {
+    return 'image';
+  } else if (mimeType.includes('pdf')) {
+    return 'file-pdf';
+  } else if (mimeType.includes('word') || mimeType.includes('document')) {
+    return 'file-word';
+  } else if (mimeType.includes('excel') || mimeType.includes('sheet')) {
+    return 'file-excel';
+  } else if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) {
+    return 'file-powerpoint';
+  } else if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('tar') || mimeType.includes('gz')) {
+    return 'file-zipper';
+  } else if (mimeType.startsWith('video/')) {
+    return 'file-video';
+  } else if (mimeType.startsWith('audio/')) {
+    return 'file-audio';
+  } else if (mimeType.includes('text')) {
+    return 'file-text';
+  } else {
+    return 'file';
+  }
+};
+
+const getFileTypeClass = (file) => {
+  const mimeType = file.mime_type?.toLowerCase() || '';
+  
+  if (mimeType.startsWith('image/')) {
+    return 'image';
+  } else if (mimeType.includes('pdf') || mimeType.includes('word') || mimeType.includes('document') || 
+             mimeType.includes('excel') || mimeType.includes('sheet') || mimeType.includes('powerpoint') || 
+             mimeType.includes('presentation') || mimeType.includes('text')) {
+    return 'document';
+  } else if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('tar') || mimeType.includes('gz')) {
+    return 'archive';
+  } else if (mimeType.startsWith('video/')) {
+    return 'video';
+  } else if (mimeType.startsWith('audio/')) {
+    return 'audio';
+  } else {
+    return 'other';
+  }
+};
+
+const getFileTypeLabel = (mimeType) => {
+  if (!mimeType) return 'Unknown';
+  
+  const type = mimeType.toLowerCase();
+  
+  if (type.startsWith('image/')) {
+    return 'Gambar';
+  } else if (type.includes('pdf')) {
+    return 'PDF';
+  } else if (type.includes('word')) {
+    return 'Word';
+  } else if (type.includes('excel') || type.includes('sheet')) {
+    return 'Excel';
+  } else if (type.includes('powerpoint') || type.includes('presentation')) {
+    return 'PowerPoint';
+  } else if (type.includes('text')) {
+    return 'Teks';
+  } else if (type.startsWith('video/')) {
+    return 'Video';
+  } else if (type.startsWith('audio/')) {
+    return 'Audio';
+  } else if (type.includes('zip')) {
+    return 'ZIP';
+  } else if (type.includes('rar')) {
+    return 'RAR';
+  } else {
+    return mimeType.split('/')[1]?.toUpperCase() || 'File';
+  }
+};
+
+// Determine whether the attachment came from a Task or a Comment
+const getFileSourceLabel = (file) => {
+  // Try model_type_short, model_type, or other available keys
+  const type = (file.model_type_short || file.model_type || file.model_type_name || '').toString().toLowerCase();
+  if (!type) return '';
+
+  if (type.includes('task')) return 'Tugas';
+  if (type.includes('comment')) return 'Komentar';
+  if (type.includes('note')) return 'Catatan';
+  // fallback: if model contains 'comment' or 'task' anywhere
+  if (String(file.model_type).toLowerCase().includes('comment')) return 'Komentar';
+  if (String(file.model_type).toLowerCase().includes('task')) return 'Tugas';
+
+  return '';
+};
+
+const formatFileDate = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Hari ini';
+  if (diffDays === 1) return 'Kemarin';
+  if (diffDays < 7) return `${diffDays} hari yang lalu`;
+  
+  return date.toLocaleDateString('id-ID', { 
+    day: 'numeric', 
+    month: 'short',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+  });
+};
+
+const handleImageError = (event) => {
+  // Hide broken image and show fallback icon
+  event.target.style.display = 'none';
+  const parent = event.target.parentElement;
+  if (parent) {
+    parent.innerHTML = '<div class="file-icon-preview"><i class="fas fa-image file-type-icon image"></i></div>';
+  }
+};
+
+// File actions
+const previewFile = (file) => {
+  const url = file.file_url || `/storage/${file.file_path}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
+const copyFileLink = async (file) => {
+  try {
+    const url = file.file_url || `${window.location.origin}/storage/${file.file_path}`;
+    await navigator.clipboard.writeText(url);
+    successToast('Link berkas berhasil disalin');
+  } catch (error) {
+    console.error('Error copying file link:', error);
+    errorToast('Gagal menyalin link berkas');
+  }
+};
+
+const clearFilters = () => {
+  fileSearchQuery.value = '';
+  fileTypeFilter.value = '';
 };
 
 // Activity helpers
@@ -1372,21 +1948,267 @@ const handleBoardScroll = (event) => {
   // Could emit events or update reactive state for scroll indicators
 };
 
-// Member actions
-const removeMember = async (member) => {
-  if (!confirm(`Hapus anggota ${member.name} dari proyek?`)) return;
+// Member management functions
+const fetchUsers = async (search = '') => {
+  try {
+    const params = search ? { search } : {};
+    const response = await userService.list(params);
+    users.value = response.data.data || [];
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    users.value = [];
+  }
+};
 
+const fetchProjectRoles = async () => {
+  try {
+    // Fetch project-specific roles from API
+    const projectSlug = route.params.projectSlug;
+    if (!projectSlug) {
+      projectRoles.value = [];
+      return;
+    }
+
+    const res = await projectService.getProjectRoles(projectSlug);
+    // API expected shape: { data: { data: [...] } } or { data: [...] }
+    const data = res.data?.data ?? res.data;
+    projectRoles.value = Array.isArray(data) ? data : (data?.data || []);
+  } catch (error) {
+    console.error('Error fetching project roles:', error);
+    projectRoles.value = [];
+  }
+};
+
+const openInviteModal = async () => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk mengundang anggota');
+    return;
+  }
+  
+  inviteUserId.value = '';
+  inviteRoleId.value = '';
+  inviteSearch.value = '';
+  await fetchUsers();
+  await fetchProjectRoles();
+  showInviteModal.value = true;
+};
+
+const closeInviteModal = () => {
+  showInviteModal.value = false;
+  inviting.value = false;
+  inviteSearch.value = '';
+  showSearchResults.value = false;
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+    searchTimeout = null;
+  }
+};
+
+const onSearchInput = () => {
+  const val = inviteSearch.value || '';
+  inviteUserId.value = '';
+  showSearchResults.value = !!val && val.length >= 3;
+  
+  if (searchTimeout) clearTimeout(searchTimeout);
+  
+  if (!val || val.length < 3) {
+    showSearchResults.value = false;
+    isSearching.value = false;
+    return;
+  }
+  
+  isSearching.value = true;
+  searchTimeout = setTimeout(() => performSearch(val), 350);
+};
+
+const performSearch = async (query) => {
+  try {
+    const response = await userService.list({ search: query });
+    users.value = response.data.data || [];
+  } catch (error) {
+    console.error('Error searching users:', error);
+    users.value = [];
+  } finally {
+    isSearching.value = false;
+  }
+};
+
+const selectUser = (user) => {
+  if (isUserMember(user)) {
+    errorToast('Pengguna sudah menjadi anggota proyek ini');
+    return;
+  }
+  
+  inviteUserId.value = user.id;
+  inviteSearch.value = `${user.name} — ${user.email}`;
+  showSearchResults.value = false;
+};
+
+const isUserMember = (user) => {
+  return projectMembers.value.some(member => 
+    member.id === user.id || member.user_id === user.id
+  );
+};
+
+const sendInvite = async () => {
+  if (!canInviteMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk mengundang anggota');
+    return;
+  }
+  
+  if (!inviteUserId.value || !inviteRoleId.value) {
+    errorToast('Harap pilih pengguna dan role');
+    return;
+  }
+  
+  inviting.value = true;
   try {
     const projectSlug = route.params.projectSlug;
-    await projectService.removeMember(projectSlug, { user_id: member.id });
-    successToast('Anggota berhasil dihapus');
-    // Refresh project data and tasks
-    await refreshProject();
-    await loadTasks(route.params.projectSlug);
+    const payload = {
+      user_id: inviteUserId.value,
+      project_role_id: inviteRoleId.value,
+      project_id: project.value.id
+    };
+    
+    const response = await projectService.addMember(projectSlug, payload);
+    
+    if (response.data.success) {
+      successToast(response.data.message || 'Anggota berhasil diundang');
+      await refreshProject();
+      closeInviteModal();
+    } else {
+      errorToast(response.data.message || 'Gagal mengundang anggota');
+    }
+  } catch (error) {
+    console.error('Error inviting member:', error);
+    const message = error.response?.data?.message || 'Gagal mengundang anggota';
+    errorToast(message);
+  } finally {
+    inviting.value = false;
+  }
+};
+
+const openEditMemberModal = async (member) => {
+  if (!canManageMembers.value) {
+    errorToast('Anda tidak memiliki izin untuk mengedit anggota');
+    return;
+  }
+  
+  editMember.value = member;
+  editMemberProjectRoleId.value = '';
+  await fetchProjectRoles();
+
+  // Try to auto-select the member's current role from fetched roles
+  try {
+    const r = member?.role ?? '';
+    if (r) {
+      const match = projectRoles.value.find(role => {
+        if (!role) return false;
+        const candidates = [role.id, role.name, role.code, role.slug, role.label, role.title];
+        return candidates.some(c => c != null && String(c).toLowerCase() === String(r).toLowerCase());
+      });
+      if (match) editMemberProjectRoleId.value = match.id ?? match.code ?? match.name;
+    }
+  } catch (err) {
+    console.error('Error auto-selecting member role:', err);
+  }
+
+  showEditMemberModal.value = true;
+};
+
+const closeEditMemberModal = () => {
+  showEditMemberModal.value = false;
+  editMember.value = null;
+  editMemberProjectRoleId.value = '';
+  updatingMember.value = false;
+};
+
+const updateMemberRole = async () => {
+  if (!editMember.value || !editMemberProjectRoleId.value) {
+    errorToast('Harap pilih role baru');
+    return;
+  }
+  
+  updatingMember.value = true;
+  try {
+    const projectSlug = route.params.projectSlug;
+    const payload = {
+      user_id: editMember.value.id,
+      project_role_id: editMemberProjectRoleId.value,
+      project_id: project.value.id
+    };
+    
+    const response = await projectService.updateMember(projectSlug, payload);
+    
+    if (response.data.success) {
+      successToast(response.data.message || 'Role anggota berhasil diperbarui');
+      await refreshProject();
+      closeEditMemberModal();
+    } else {
+      errorToast(response.data.message || 'Gagal memperbarui role anggota');
+    }
+  } catch (error) {
+    console.error('Error updating member role:', error);
+    const message = error.response?.data?.message || 'Gagal memperbarui role anggota';
+    errorToast(message);
+  } finally {
+    updatingMember.value = false;
+  }
+};
+
+const openRemoveMemberModal = (member) => {
+  if (!canRemoveMember(member)) {
+    errorToast('Anda tidak dapat menghapus anggota ini');
+    return;
+  }
+  
+  removeMemberTarget.value = member;
+  showRemoveMemberModal.value = true;
+};
+
+const closeRemoveMemberModal = () => {
+  showRemoveMemberModal.value = false;
+  removeMemberTarget.value = null;
+  removingMember.value = false;
+};
+
+const confirmRemoveMember = async () => {
+  if (!removeMemberTarget.value) return;
+  
+  removingMember.value = true;
+  try {
+    const projectSlug = route.params.projectSlug;
+    const payload = { 
+      user_id: removeMemberTarget.value.id,
+      project_id: project.value.id
+    };
+    
+    const response = await projectService.removeMember(projectSlug, payload);
+    
+    if (response.data.success) {
+      successToast(response.data.message || 'Anggota berhasil dihapus');
+      await refreshProject();
+      await loadTasks(route.params.projectSlug);
+      closeRemoveMemberModal();
+    } else {
+      errorToast(response.data.message || 'Gagal menghapus anggota');
+    }
   } catch (error) {
     console.error('Error removing member:', error);
-    errorToast('Gagal menghapus anggota');
+    const message = error.response?.data?.message || 'Gagal menghapus anggota';
+    errorToast(message);
+  } finally {
+    removingMember.value = false;
   }
+};
+
+const toggleMemberMenu = (memberId) => {
+  menuOpenFor.value = menuOpenFor.value === memberId ? null : memberId;
+};
+
+// Legacy function for compatibility
+const removeMember = async (member) => {
+  openRemoveMemberModal(member);
 };
 
 // Normalized project members computed (handles several API shapes)
@@ -1408,6 +2230,38 @@ const projectMembers = computed(() => {
     return { id, name, email, avatar, role };
   }).filter(x => x && x.id);
 });
+
+// Member management computed properties
+const currentProjectRole = computed(() => {
+  const user = authStore.user;
+  if (!user || !project.value) return null;
+  const member = projectMembers.value.find(m => m.id === user.id);
+  return member?.role || null;
+});
+
+const canInviteMembers = computed(() => {
+  if (!authStore.user) return false;
+  // System admin can always invite
+  const user = authStore.user;
+  const roleCode = String(user.system_role?.code || '').toLowerCase();
+  const isSysAdmin = roleCode === 'admin' || roleCode === 'system_admin' || user.system_role?.id === 1;
+  if (isSysAdmin) return true;
+  
+  // Check project role
+  const role = (currentProjectRole.value || '').toString().toLowerCase();
+  return role.includes('owner') || role.includes('admin') || role === 'manager';
+});
+
+const canManageMembers = computed(() => {
+  return canInviteMembers.value; // Same permission for now
+});
+
+const canRemoveMember = (member) => {
+  if (!canManageMembers.value) return false;
+  if (!member || !authStore.user) return false;
+  // Cannot remove self
+  return member.id !== authStore.user.id;
+};
 
 // Task summary computed values (prefer live `tasks` array; fall back to project counts)
 const getStatusForTask = (task) => {
@@ -1464,16 +2318,32 @@ const tasksCompletedPercent = computed(() => {
 // Return a readable role label for a member
 const getMemberRole = (member) => {
   if (!member) return '';
-  const r = member.role || '';
+  const r = member.role ?? '';
   if (!r) return '';
-  // common roles mapping
+
+  // Try to resolve using fetched project roles first. The member.role
+  // may be an id (number) or a string (code/name). We try several fields.
+  const roles = projectRoles.value || [];
+  const match = roles.find(role => {
+    if (!role) return false;
+    const candidates = [role.id, role.name, role.code, role.slug, role.label, role.title];
+    return candidates.some(c => c != null && String(c).toLowerCase() === String(r).toLowerCase());
+  });
+
+  if (match) {
+    // Prefer a human-friendly name field
+    return match.name || match.label || match.title || String(match.id);
+  }
+
+  // Fallback mapping for common role codes/names
   const map = {
     owner: 'Pemilik',
     admin: 'Admin',
     member: 'Anggota',
     manager: 'Manajer'
   };
-  return map[r.toString().toLowerCase()] || r;
+
+  return map[String(r).toLowerCase()] || r;
 };
 
 // Notes functions
@@ -4003,6 +4873,618 @@ const saveProjectSettings = async () => {
 
   .board-columns::-webkit-scrollbar-thumb:hover {
     background: #718096;
+  }
+}
+
+/* Member management styles */
+.members-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.members-header h3 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.member-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.member-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.member-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-background-soft);
+  border: 2px solid var(--color-border);
+}
+
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.member-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-500);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.member-details {
+  flex: 1;
+}
+
+.member-name {
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.member-email {
+  color: var(--color-muted);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.role-badge.admin {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.role-badge.manager {
+  background: #fef3c7;
+  color: #d97706;
+  border-color: #fde68a;
+}
+
+.role-badge.member {
+  background: #e0f2fe;
+  color: #0288d1;
+  border-color: #81d4fa;
+}
+
+.member-actions-menu {
+  position: relative;
+}
+
+.member-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  min-width: 150px;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: background-color 0.15s ease;
+}
+
+.dropdown-item:hover {
+  background: var(--color-background-soft);
+}
+
+.dropdown-item.text-danger {
+  color: #dc2626;
+}
+
+.dropdown-item.text-danger:hover {
+  background: #fee2e2;
+}
+
+/* Member preview in modals */
+.member-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+/* Autocomplete styles */
+.autocomplete {
+  position: relative;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 20;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.autocomplete-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: var(--color-background-soft);
+}
+
+.autocomplete-item.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.autocomplete-item.disabled:hover {
+  background: transparent;
+}
+
+.autocomplete-item-main {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.autocomplete-item-note {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+.autocomplete-empty {
+  padding: 12px 16px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.text-muted {
+  color: var(--color-muted);
+}
+
+.text-danger {
+  color: #dc2626;
+}
+
+/* ===== Files View Styles - Clean Version ===== */
+.files-view {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* Files Header */
+.files-header {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.files-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.files-title-section {
+  flex: 1;
+}
+
+.files-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 8px 0;
+}
+
+.files-subtitle {
+  font-size: 14px;
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.files-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0 12px;
+  min-width: 240px;
+  transition: border-color 0.2s ease;
+}
+
+.search-box:focus-within {
+  border-color: var(--color-primary-500);
+}
+
+.search-icon {
+  color: var(--color-muted);
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.search-input {
+  background: none;
+  border: none;
+  outline: none;
+  padding: 10px 0;
+  font-size: 14px;
+  color: var(--color-text);
+  flex: 1;
+}
+
+.search-input::placeholder {
+  color: var(--color-muted);
+}
+
+.type-filter {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  min-width: 120px;
+  transition: border-color 0.2s ease;
+}
+
+.type-filter:focus {
+  border-color: var(--color-primary-500);
+  outline: none;
+}
+
+/* Files Content */
+.files-content {
+  flex: 1;
+}
+
+/* Loading State */
+.files-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  text-align: center;
+}
+
+.files-loading p {
+  margin: 16px 0 0 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+/* Empty State */
+.files-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-background-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  margin-bottom: 24px;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 8px 0;
+}
+
+.empty-text {
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 24px 0;
+  max-width: 400px;
+}
+
+/* Files Grid */
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+/* File Card */
+.file-card {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.file-card:hover {
+  border-color: var(--color-primary-300);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+/* File Preview */
+.file-preview {
+  width: 100%;
+  height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-background-soft);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-muted);
+}
+
+/* File type colors */
+.file-icon .image {
+  color: #10b981;
+}
+
+.file-icon .document {
+  color: #3b82f6;
+}
+
+.file-icon .archive {
+  color: #f59e0b;
+}
+
+.file-icon .video {
+  color: #8b5cf6;
+}
+
+.file-icon .audio {
+  color: #ef4444;
+}
+
+/* File Info */
+.file-info {
+  margin-bottom: 16px;
+}
+
+.file-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.file-details {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.file-details span {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.file-source-badge {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.file-size {
+  color: var(--color-primary-600) !important;
+  background: var(--color-primary-50) !important;
+  border-color: var(--color-primary-200) !important;
+}
+
+/* File Actions */
+.file-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* actions left, badge right */
+  gap: 12px;
+  opacity: 1; /* always visible */
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  padding: 6px 8px 0 8px;
+}
+
+.action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Keep a subtle de-emphasis when not interacting */
+.file-card:not(:hover) .action-btn {
+  opacity: 0.9;
+  transform: translateY(0);
+}
+
+.file-card:hover .action-btn {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.action-btn:hover {
+  background: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .files-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .files-header-content {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .files-controls {
+    width: 100%;
+  }
+  
+  .search-box {
+    min-width: auto;
+    flex: 1;
+  }
+  
+  .files-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .files-header {
+    padding: 20px;
+  }
+  
+  .files-title {
+    font-size: 20px;
+  }
+  
+  .file-card {
+    padding: 16px;
+  }
+  
+  .file-preview {
+    height: 100px;
+  }
+  
+  .files-controls {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .type-filter {
+    width: 100%;
   }
 }
 </style>
