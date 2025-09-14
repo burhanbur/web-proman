@@ -126,11 +126,7 @@
       <div class="view-content">
         <!-- Board View -->
         <div v-if="activeView === 'board'" class="board-view">
-          <div 
-            class="board-columns" 
-            ref="boardContainer"
-            @scroll="handleBoardScroll"
-          >
+          <div class="board-columns">
             <div 
               v-for="status in taskStatuses" 
               :key="status.id"
@@ -171,7 +167,7 @@
                 >
                   <div class="task-header">
                     <h4 class="task-title">{{ task.title }}</h4>
-                      <div class="task-priority" :class="(task.priority && task.priority.name) ? task.priority.name.toLowerCase() : ''">
+                    <div class="task-priority" :class="(task.priority && task.priority.name) ? task.priority.name.toLowerCase() : ''">
                       <font-awesome-icon 
                         :icon="getPriorityIcon(task.priority)" 
                         size="sm" 
@@ -215,7 +211,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- Loading overlay during status update -->
           <div v-if="updatingTaskStatus" class="status-update-overlay">
             <div class="status-update-message">
@@ -585,6 +581,29 @@
           >
             <font-awesome-icon icon="paper-plane" size="sm" />
             {{ creatingNote ? 'Menyimpan...' : 'Simpan Catatan' }}
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Generic Confirm Modal -->
+    <div v-if="showConfirmModal" class="modal-overlay" @click="closeConfirm">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h3>{{ confirmTitle }}</h3>
+          <button class="btn-close" @click="closeConfirm">
+            <font-awesome-icon icon="times" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>{{ confirmMessage }}</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeConfirm" :disabled="confirmLoading">Batal</button>
+          <button class="btn btn-danger" @click="handleConfirm" :disabled="confirmLoading">
+            <font-awesome-icon v-if="confirmLoading" icon="spinner" spin />
+            <font-awesome-icon v-else icon="check" />
+            {{ confirmLoading ? 'Proses...' : 'Konfirmasi' }}
           </button>
         </div>
       </div>
@@ -1274,7 +1293,6 @@ const loadNotes = async (projectId) => {
   try {
     const response = await noteService.list({ model_type: 'project', model_id: projectId });
     notes.value = response.data.data || [];
-    console.log('Loaded notes:', notes.value);
   } catch (error) {
     console.error('Error loading notes:', error);
   }
@@ -1313,7 +1331,7 @@ const removeFile = (index) => {
   selectedFiles.value.splice(index, 1);
 };
 
-// File drag and drop functions
+// File drag and drop functions (separate names to avoid conflict with board drag handlers)
 const handleFileDragOver = (event) => {
   event.preventDefault();
   isDragOver.value = true;
@@ -1332,7 +1350,7 @@ const handleFileDrop = (event) => {
   selectedFiles.value = [...selectedFiles.value, ...files];
 };
 
-// Create note with attachments
+// Create note with attachments (match WorkspacePage behavior)
 const createNoteWithAttachments = async () => {
   if (!newNoteContent.value.trim()) return;
   creatingNote.value = true;
@@ -1343,12 +1361,12 @@ const createNoteWithAttachments = async () => {
     formData.append('model_id', project.value.id);
     formData.append('content', newNoteContent.value.trim());
     
-    // Add files to FormData
-    selectedFiles.value.forEach((file, index) => {
-      formData.append(`attachments[${index}]`, file);
+    // Add files to FormData using attachments[] so backend matches validation
+    selectedFiles.value.forEach((file) => {
+      formData.append('attachments[]', file);
     });
-    
-    const res = await noteService.create(formData);
+
+    const res = await noteService.create(formData, { headers: { 'Content-Type': 'multipart/form-data' } });
     if (res.data && res.data.success) {
       successToast(res.data.message || 'Catatan berhasil dibuat');
       // prepend new note to list if returned
@@ -1367,20 +1385,57 @@ const createNoteWithAttachments = async () => {
   }
 };
 
-const deleteNote = async (noteId) => {
-  if (!confirm('Hapus catatan ini?')) return;
+// Generic confirm modal state & handlers (copied from WorkspacePage pattern)
+const showConfirmModal = ref(false);
+const confirmTitle = ref('');
+const confirmMessage = ref('');
+const confirmAction = ref('');
+const confirmPayload = ref(null);
+const confirmLoading = ref(false);
+
+const openConfirm = ({ title = 'Konfirmasi', message = '', action = '', payload = null } = {}) => {
+  confirmTitle.value = title;
+  confirmMessage.value = message;
+  confirmAction.value = action;
+  confirmPayload.value = payload;
+  showConfirmModal.value = true;
+};
+
+const closeConfirm = () => {
+  showConfirmModal.value = false;
+  confirmTitle.value = '';
+  confirmMessage.value = '';
+  confirmAction.value = '';
+  confirmPayload.value = null;
+  confirmLoading.value = false;
+};
+
+const handleConfirm = async () => {
+  if (!confirmAction.value) { closeConfirm(); return; }
+  confirmLoading.value = true;
   try {
-    const res = await noteService.remove(noteId);
-    if (res.data && res.data.success) {
-      notes.value = notes.value.filter(n => n.id !== noteId);
-      successToast(res.data.message || 'Catatan dihapus');
-    } else {
-      errorToast(res.data.message || 'Gagal menghapus catatan');
+    if (confirmAction.value === 'deleteNote') {
+      const noteId = confirmPayload.value?.noteId;
+      if (!noteId) { errorToast('Note ID tidak ditemukan'); return; }
+      const res = await noteService.remove(noteId);
+      if (res.data && res.data.success) {
+        notes.value = notes.value.filter(n => n.id !== noteId);
+        successToast(res.data.message || 'Catatan dihapus');
+      } else {
+        errorToast(res.data?.message || 'Gagal menghapus catatan');
+      }
     }
-  } catch (error) {
-    console.error('Error deleting note:', error);
-    errorToast('Terjadi kesalahan saat menghapus catatan');
+  } catch (err) {
+    console.error('Error handling confirm action:', err);
+    errorToast('Terjadi kesalahan');
+  } finally {
+    confirmLoading.value = false;
+    closeConfirm();
   }
+};
+
+const deleteNote = async (noteId) => {
+  openConfirm({ title: 'Hapus Catatan', message: 'Hapus catatan ini?', action: 'deleteNote', payload: { noteId } });
 };
 </script>
 
