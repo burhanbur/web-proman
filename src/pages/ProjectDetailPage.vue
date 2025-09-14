@@ -120,6 +120,13 @@
           <font-awesome-icon icon="sticky-note" size="sm" />
           Catatan
         </button>
+        <button 
+          :class="['nav-item', { active: activeView === 'settings' }]"
+          @click="(activeView = 'settings', loadProjectStatuses(), fillSettingsFromProject())"
+        >
+          <font-awesome-icon icon="gear" size="sm" />
+          Pengaturan
+        </button>
       </div>
 
       <!-- View Content -->
@@ -216,7 +223,7 @@
           <div v-if="updatingTaskStatus" class="status-update-overlay">
             <div class="status-update-message">
               <div class="loading-spinner small"></div>
-              <span>Memperbarui status tugas...</span>
+              <span>Memperbarui status proyek...</span>
             </div>
           </div>
         </div>
@@ -496,6 +503,188 @@
             </div>
           </div>
         </div>
+
+        <!-- Settings / Pengaturan View -->
+        <div v-if="activeView === 'settings'" class="settings-tab">
+          <div class="settings-section">
+            <h3>Pengaturan Proyek</h3>
+            <p>Kelola preferensi dan konfigurasi proyek</p>
+            
+            <!-- Settings form: 2-column layout (75% left / 25% right) -->
+            <div class="settings-form">
+              <div class="settings-form-row">
+                <div class="settings-left">
+                  <div class="form-group">
+                    <label class="form-label">Nama Proyek</label>
+                    <input class="form-input" v-model="settings.name" type="text" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Deskripsi</label>
+                    <textarea class="form-input" v-model="settings.description" rows="3"></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <div class="status-group">
+                      <div class="status-item">
+                        <label class="switch" aria-label="Aktifkan proyek">
+                          <input type="checkbox" v-model="settings.is_active" :aria-checked="settings.is_active" />
+                          <span class="switch-slider" role="switch" :aria-checked="String(settings.is_active)"></span>
+                        </label>
+                        <div class="switch-labels">
+                          <div class="switch-title">Aktif</div>
+                          <div class="switch-sub">Proyek dapat digunakan</div>
+                        </div>
+                      </div>
+
+                      <div class="status-item">
+                        <label class="switch" aria-label="Jadikan proyek publik">
+                          <input type="checkbox" v-model="settings.is_public" :aria-checked="settings.is_public" />
+                          <span class="switch-slider" role="switch" :aria-checked="String(settings.is_public)"></span>
+                        </label>
+                        <div class="switch-labels">
+                          <div class="switch-title">Publik</div>
+                          <div class="switch-sub">Dapat dilihat oleh semua anggota proyek</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-right">
+                  <label class="form-label">Logo Proyek</label>
+                  <div class="logo-upload">
+                    <input type="file" ref="settingsLogoInput" class="file-input" @change="onSettingsLogoSelect" accept="image/*" />
+                    <div v-if="settingsPreview" class="logo-preview logo-card" @click="$refs.settingsLogoInput.click()" title="Klik untuk mengganti logo">
+                      <img class="logo-thumb large" :src="settingsPreview" alt="logo preview"/>
+                      <div class="logo-meta">
+                        <small v-if="settings.logoFile">{{ settings.logoFile?.name }}</small>
+                        <small v-else-if="project.logo">Logo saat ini</small>
+                      </div>
+                    </div>
+                    <div v-else class="logo-preview logo-empty logo-card" @click="$refs.settingsLogoInput.click()" title="Klik untuk memilih logo">
+                      <div class="logo-empty-text">Tidak ada logo</div>
+                    </div>
+
+                    <div class="logo-actions">
+                      <button class="btn btn-primary" @click.prevent="$refs.settingsLogoInput.click()">
+                        <font-awesome-icon icon="upload" />
+                        <span class="btn-text">Pilih Logo</span>
+                      </button>
+
+                      <button
+                        class="btn btn-danger"
+                        v-if="settings.logoFile"
+                        @click="removeSettingsLogo"
+                        title="Batalkan pilihan file"
+                      >
+                        <font-awesome-icon icon="ban" />
+                        <span class="btn-text">Batalkan</span>
+                      </button>
+
+                      <button
+                        :class="['btn', settings.removeLogo ? 'btn-warning' : 'btn-danger']"
+                        v-else-if="project.logo && !settings.logoFile"
+                        @click.prevent="settings.removeLogo = !settings.removeLogo"
+                      >
+                        <font-awesome-icon :icon="settings.removeLogo ? 'undo' : 'trash'" />
+                        <span class="btn-text">{{ settings.removeLogo ? 'Batalkan Hapus' : 'Hapus Logo' }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group actions-row">
+                <button class="btn btn-primary" :disabled="savingSettings" @click="saveProjectSettings">
+                  <font-awesome-icon icon="save" /> {{ savingSettings ? 'Menyimpan...' : 'Simpan Perubahan' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Project Status Management Section -->
+            <div class="settings-section">
+              <h3>Status Proyek</h3>
+              <p>Kelola status proyek untuk proyek ini. Anda dapat menambah, mengedit, atau menghapus status proyek.</p>
+
+              <div v-if="statusLoading" class="loading-container">
+                <div class="loading-spinner"></div>
+                <p>Memuat status...</p>
+              </div>
+
+              <div v-else>
+                <div class="status-list">
+                  <div
+                    v-for="(s, idx) in projectStatuses"
+                    :key="s.id"
+                    class="status-row draggable-row"
+                    :draggable="true"
+                    @dragstart="onStatusDragStart($event, idx)"
+                    @dragover.prevent="onStatusDragOver($event, idx)"
+                    @drop.prevent="onStatusDrop($event, idx)"
+                  >
+                    <div class="status-info">
+                      <div class="drag-handle" title="Seret untuk mengatur urutan">☰</div>
+                      <div class="status-color" :style="{ width: '12px', height: '12px', backgroundColor: s.color, borderRadius: '3px', marginRight: '8px' }"></div>
+                      <div>{{ s.name }}</div>
+                      <div class="muted" style="margin-left:8px">{{ s.is_completed ? 'Selesai' : '' }} {{ s.is_cancelled ? '• Dibatalkan' : '' }}</div>
+                    </div>
+                    <div class="status-actions">
+                      <button class="btn btn-secondary" @click="openEditStatusModal(s)">Edit</button>
+                      <button class="btn btn-danger" @click="removeStatus(s)">Hapus</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="status-actions-top">
+                  <button class="btn btn-primary" @click="openCreateStatusModal">
+                    <font-awesome-icon icon="plus" /> Tambah Status Baru
+                  </button>
+                </div>
+
+                <!-- Status modal (create / edit) -->
+                <div v-if="showStatusModal" class="modal-overlay" @click="closeStatusModal">
+                  <div class="modal-container" @click.stop>
+                    <div class="modal-header">
+                      <h3>{{ isStatusEditing ? 'Edit Status Proyek' : 'Tambah Status Baru' }}</h3>
+                      <button class="btn-close" @click="closeStatusModal">
+                        <font-awesome-icon icon="times" />
+                      </button>
+                    </div>
+                    <div class="modal-body">
+                      <div class="form-group">
+                        <label class="form-label">Nama</label>
+                        <input v-model="statusForm.name" class="form-input" />
+                      </div>
+                      <div class="form-group">
+                        <label class="form-label">Warna</label>
+                        <input type="color" v-model="statusForm.color" class="form-input" />
+                      </div>
+                      <div class="form-group">
+                        <label class="checkbox-option">
+                          <input type="checkbox" v-model="statusForm.is_completed" />
+                          <span class="checkbox-label"> &nbsp; Menandai sebagai status selesai</span>
+                        </label>
+                      </div>
+                      <div class="form-group">
+                        <label class="checkbox-option">
+                          <input type="checkbox" v-model="statusForm.is_cancelled" />
+                          <span class="checkbox-label"> &nbsp; Menandai sebagai status dibatalkan</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="modal-footer">
+                      <button class="btn btn-secondary" @click="closeStatusModal">Batal</button>
+                      <button class="btn btn-primary" :disabled="statusSaving" @click="submitStatusModal">
+                        <font-awesome-icon v-if="statusSaving" icon="spinner" spin />
+                        <span v-else>{{ isStatusEditing ? 'Simpan' : 'Buat' }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -612,7 +801,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { projectService } from '@/api/services/projectService';
 import { taskService } from '@/api/services/taskService';
@@ -776,7 +965,6 @@ const filteredTasks = computed(() => {
 
 // Helper functions
 const getTasksByStatus = (statusId) => {
-  console.log(tasks.value);
   return tasks.value.filter(task => task.status_id === statusId || task.status?.id === statusId);
 };
 
@@ -1139,7 +1327,7 @@ const updateTaskStatus = async (task, newStatusId) => {
     // Call API to update status
     await taskService.updateTaskStatus(task.uuid || task.id, { status_id: newStatusId });
     
-    successToast('Status tugas berhasil diperbarui');
+  successToast('Status proyek berhasil diperbarui');
     
   } catch (error) {
     // Revert optimistic update on error
@@ -1152,7 +1340,7 @@ const updateTaskStatus = async (task, newStatusId) => {
     }
     
     console.error('Error updating task status:', error);
-    errorToast('Gagal memperbarui status tugas');
+  errorToast('Gagal memperbarui status proyek');
   } finally {
     updatingTaskStatus.value = false;
   }
@@ -1425,6 +1613,25 @@ const handleConfirm = async () => {
         errorToast(res.data?.message || 'Gagal menghapus catatan');
       }
     }
+    else if (confirmAction.value === 'deleteProjectStatus') {
+      // payload: { status }
+      try {
+        const status = confirmPayload.value?.status;
+        if (!status) throw new Error('Status tidak ditemukan');
+        const projectSlug = route.params.projectSlug;
+        const res = await projectService.deleteStatus(projectSlug, status.id);
+        if (res.data && res.data.success) {
+          projectStatuses.value = projectStatuses.value.filter(s => s.id !== status.id);
+          await loadTaskStatuses();
+          successToast(res.data.message || 'Status proyek dihapus');
+        } else {
+          errorToast(res.data?.message || 'Gagal menghapus status proyek');
+        }
+      } catch (err) {
+        console.error('Error in deleteProjectStatus confirm handler:', err);
+        errorToast('Terjadi kesalahan saat menghapus status proyek');
+      }
+    }
   } catch (err) {
     console.error('Error handling confirm action:', err);
     errorToast('Terjadi kesalahan');
@@ -1437,12 +1644,318 @@ const handleConfirm = async () => {
 const deleteNote = async (noteId) => {
   openConfirm({ title: 'Hapus Catatan', message: 'Hapus catatan ini?', action: 'deleteNote', payload: { noteId } });
 };
+
+// =========================
+// Pengaturan (Settings)
+// =========================
+// Settings tab state
+const showSettings = ref(false);
+const settings = ref({ name: '', description: '', logoFile: null, is_active: true, is_public: false, removeLogo: false });
+const settingsPreview = ref(null);
+const savingSettings = ref(false);
+
+// Status management for project
+const projectStatuses = ref([]);
+const newStatus = ref({ name: '', color: '#17a2b8', is_completed: false, is_cancelled: false });
+const editingStatus = ref(null);
+// (inline edit refs removed — modal is used instead)
+const statusLoading = ref(false);
+
+// Modal state for status create/edit
+const showStatusModal = ref(false);
+const isStatusEditing = ref(false);
+const statusForm = ref({ id: null, name: '', color: '#17a2b8', is_completed: false, is_cancelled: false });
+const statusSaving = ref(false);
+
+const openCreateStatusModal = () => {
+  isStatusEditing.value = false;
+  statusForm.value = { id: null, name: '', color: '#17a2b8', is_completed: false, is_cancelled: false };
+  showStatusModal.value = true;
+};
+
+const openEditStatusModal = (status) => {
+  isStatusEditing.value = true;
+  statusForm.value = { id: status.id, name: status.name || '', color: status.color || '#17a2b8', is_completed: !!status.is_completed, is_cancelled: !!status.is_cancelled };
+  showStatusModal.value = true;
+};
+
+const closeStatusModal = () => {
+  showStatusModal.value = false;
+};
+
+const submitStatusModal = async () => {
+  if (!statusForm.value.name?.trim()) {
+    errorToast('Nama status tidak boleh kosong');
+    return;
+  }
+
+  statusSaving.value = true;
+  try {
+    const projectSlug = route.params.projectSlug;
+    if (isStatusEditing.value) {
+      const payload = { name: statusForm.value.name, color: statusForm.value.color, is_completed: statusForm.value.is_completed ? 1 : 0, is_cancelled: statusForm.value.is_cancelled ? 1 : 0 };
+      const res = await projectService.updateStatus(projectSlug, statusForm.value.id, payload);
+      if (res.data && res.data.success) {
+        successToast(res.data.message || 'Status diperbarui');
+        const idx = projectStatuses.value.findIndex(s => s.id === statusForm.value.id);
+        if (idx !== -1) projectStatuses.value.splice(idx, 1, res.data.data || { ...statusForm.value });
+        await loadTaskStatuses();
+        closeStatusModal();
+      } else {
+        errorToast(res.data?.message || 'Gagal memperbarui status');
+      }
+    } else {
+      const payload = { name: statusForm.value.name, color: statusForm.value.color, is_completed: statusForm.value.is_completed ? 1 : 0, is_cancelled: statusForm.value.is_cancelled ? 1 : 0 };
+      const res = await projectService.createStatus(projectSlug, payload);
+      if (res.data && res.data.success) {
+        successToast(res.data.message || 'Status dibuat');
+        projectStatuses.value.unshift(res.data.data);
+        await loadTaskStatuses();
+        closeStatusModal();
+      } else {
+        errorToast(res.data?.message || 'Gagal membuat status');
+      }
+    }
+  } catch (err) {
+    console.error('Error submitting status modal:', err);
+    errorToast('Terjadi kesalahan saat menyimpan status');
+  } finally {
+    statusSaving.value = false;
+  }
+};
+
+// Load project statuses (alias of taskStatuses) but keep separate for management UI
+const loadProjectStatuses = async () => {
+  try {
+    statusLoading.value = true;
+    const projectSlug = route.params.projectSlug;
+    const res = await projectService.getProjectStatus(projectSlug);
+    projectStatuses.value = res.data.data || [];
+  } catch (err) {
+    console.error('Error loading project statuses:', err);
+    errorToast('Gagal memuat status proyek');
+  } finally {
+    statusLoading.value = false;
+  }
+};
+
+// Drag & drop for status ordering (settings list)
+const statusDragIndex = ref(null);
+const statusDropIndex = ref(null);
+
+const onStatusDragStart = (event, idx) => {
+  statusDragIndex.value = idx;
+  // set drag data to allow drop
+  try { event.dataTransfer.setData('text/plain', String(idx)); } catch (e) { /* some browsers */ }
+};
+
+const onStatusDragOver = (event, idx) => {
+  // highlight potential drop target - handled via CSS :hover mainly
+  statusDropIndex.value = idx;
+};
+
+const debounce = (fn, wait = 300) => {
+  let t = null;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+};
+
+// Persist order to server (debounced to avoid many calls)
+const persistStatusOrder = debounce(async (ordered) => {
+  try {
+    const projectSlug = route.params.projectSlug;
+    // payload: { orders: [{ id, order }, ...] }
+    const payload = { orders: ordered.map((s, i) => ({ id: s.id, order: i + 1 })) };
+    const res = await projectService.updateStatusOrder(projectSlug, payload);
+    if (res.data && res.data.success) {
+      successToast('Urutan status proyek tersimpan');
+    } else {
+      errorToast(res.data?.message || 'Gagal menyimpan urutan status');
+    }
+  } catch (err) {
+    console.error('Error persisting status order:', err);
+    errorToast('Terjadi kesalahan saat menyimpan urutan status');
+  }
+}, 250);
+
+const onStatusDrop = async (event, idx) => {
+  const from = statusDragIndex.value ?? parseInt(event.dataTransfer.getData('text/plain'));
+  const to = idx;
+  if (from == null || to == null || from === to) {
+    statusDragIndex.value = null;
+    statusDropIndex.value = null;
+    return;
+  }
+
+  // Reorder local array
+  const list = [...projectStatuses.value];
+  const [moved] = list.splice(from, 1);
+  list.splice(to, 0, moved);
+  projectStatuses.value = list.map((s, i) => ({ ...s, order: i + 1 }));
+
+  // Persist order (debounced)
+  persistStatusOrder(projectStatuses.value);
+
+  // reset drag indices
+  statusDragIndex.value = null;
+  statusDropIndex.value = null;
+};
+
+// Create status
+const createStatus = async () => {
+  try {
+    const projectSlug = route.params.projectSlug;
+    const payload = { ...newStatus.value };
+    const res = await projectService.createStatus(projectSlug, payload);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Status dibuat');
+      projectStatuses.value.unshift(res.data.data);
+      // refresh taskStatuses used by board
+      await loadTaskStatuses();
+      newStatus.value = { name: '', color: '#17a2b8', is_completed: false, is_cancelled: false };
+    } else {
+      errorToast(res.data?.message || 'Gagal membuat status');
+    }
+  } catch (err) {
+    console.error('Error creating status:', err);
+    errorToast('Terjadi kesalahan saat membuat status');
+  }
+};
+
+// Edit status (begin editing)
+// beginEditStatus removed in favor of modal-based editor
+
+const cancelEditStatus = () => {
+  editingStatus.value = null;
+};
+
+// Update status
+const updateStatus = async () => {
+  if (!editingStatus.value) return;
+  try {
+    const projectSlug = route.params.projectSlug;
+    const res = await projectService.updateStatus(projectSlug, editingStatus.value.id, editingStatus.value);
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Status diperbarui');
+      // update local arrays
+      const idx = projectStatuses.value.findIndex(s => s.id === editingStatus.value.id);
+      if (idx !== -1) projectStatuses.value.splice(idx, 1, res.data.data || editingStatus.value);
+      await loadTaskStatuses();
+      editingStatus.value = null;
+    } else {
+      errorToast(res.data?.message || 'Gagal memperbarui status');
+    }
+  } catch (err) {
+    console.error('Error updating status:', err);
+    errorToast('Terjadi kesalahan saat memperbarui status');
+  }
+};
+
+// Delete status
+const removeStatus = async (status) => {
+  openConfirm({
+    title: 'Hapus Status Proyek',
+    message: `Hapus status "${status.name}" dari proyek ini?`,
+    action: 'deleteProjectStatus',
+    payload: { status }
+  });
+};
+
+// Fill settings from project
+const fillSettingsFromProject = () => {
+  if (!project.value) return;
+  settings.value.name = project.value.name || '';
+  settings.value.description = project.value.description || '';
+  // coerce to boolean in case API returns 0/1 or "0"/"1"
+  settings.value.is_active = Boolean(project.value.is_active ?? true);
+  settings.value.is_public = Boolean(project.value.is_public ?? false);
+  settingsPreview.value = project.value.logo || null;
+  settings.value.removeLogo = false;
+};
+
+watch(project, (val) => {
+  if (val) fillSettingsFromProject();
+});
+
+// Logo handling for project settings
+const settingsLogoInput = ref(null);
+const MAX_LOGO_SIZE = 5 * 1024 * 1024;
+
+const onSettingsLogoSelect = (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (file.size > MAX_LOGO_SIZE) {
+    errorToast('Ukuran file logo terlalu besar (maks 5MB)');
+    return;
+  }
+  settings.value.logoFile = file;
+  settingsPreview.value = URL.createObjectURL(file);
+};
+
+const removeSettingsLogo = () => {
+  settings.value.logoFile = null;
+  settingsPreview.value = null;
+  settings.value.removeLogo = true;
+};
+
+const saveProjectSettings = async () => {
+  if (!project.value) return;
+  savingSettings.value = true;
+  try {
+    const projectSlug = route.params.projectSlug;
+    const formData = new FormData();
+    formData.append('name', settings.value.name || '');
+    formData.append('description', settings.value.description || '');
+    formData.append('is_active', settings.value.is_active ? 1 : 0);
+    formData.append('is_public', settings.value.is_public ? 1 : 0);
+    if (settings.value.logoFile) {
+      formData.append('logo', settings.value.logoFile);
+    }
+    if (settings.value.removeLogo) {
+      formData.append('remove_logo', 1);
+    }
+
+    const res = await projectService.update(projectSlug, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Pengaturan proyek disimpan');
+      // refresh project
+      await refreshProject();
+      fillSettingsFromProject();
+    } else {
+      errorToast(res.data?.message || 'Gagal menyimpan pengaturan');
+    }
+  } catch (err) {
+    console.error('Error saving project settings:', err);
+    errorToast('Terjadi kesalahan saat menyimpan pengaturan');
+  } finally {
+    savingSettings.value = false;
+  }
+};
 </script>
 
 <style scoped>
 .project-detail-page {
   min-height: 100vh;
   background: var(--color-background);
+}
+
+.draggable-row {
+  cursor: grab;
+  transition: background-color 0.12s ease, transform 0.12s ease;
+}
+.draggable-row:active {
+  cursor: grabbing;
+}
+.drag-handle {
+  cursor: grab;
+  margin-right: 8px;
+  color: var(--color-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
 }
 
 /* Loading State */
@@ -3133,6 +3646,345 @@ const deleteNote = async (noteId) => {
 .btn-remove:hover {
   background: var(--color-border);
   color: var(--color-text);
+}
+
+/* Settings Tab Styles */
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.settings-section {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.settings-section h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 8px 0;
+}
+
+.settings-section p {
+  font-size: 14px;
+  color: var(--color-muted);
+  margin: 0 0 20px 0;
+}
+
+/* Settings form two-column layout */
+.settings-form { 
+  width: 100%; 
+}
+
+.settings-form-row { 
+  display: flex; 
+  gap: 20px; 
+  align-items: flex-start; 
+}
+
+.settings-left { 
+  flex: 3 1 0%; 
+}
+
+.settings-right { 
+  flex: 1 1 0%; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+  align-items: flex-start; 
+}
+
+.actions-row { 
+  margin-top: 18px; 
+}
+
+@media (max-width: 768px) {
+  .settings-form-row { 
+    flex-direction: column; 
+  }
+  
+  .settings-right { 
+    align-items: flex-start; 
+  }
+}
+
+/* Form elements */
+.form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--color-background);
+  color: var(--color-text);
+  resize: vertical;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Status toggles */
+.status-group { 
+  display: flex; 
+  gap: 18px; 
+  flex-wrap: wrap; 
+}
+
+.status-item { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+}
+
+.switch { 
+  position: relative; 
+  display: inline-block; 
+  width: 48px; 
+  height: 28px; 
+}
+
+.switch input { 
+  opacity: 0; 
+  width: 0; 
+  height: 0; 
+}
+
+.switch-slider {
+  position: absolute; 
+  cursor: pointer; 
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  bottom: 0;
+  background-color: var(--color-border); 
+  border-radius: 999px; 
+  transition: background-color .18s ease;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
+}
+
+.switch-slider::before {
+  content: '';
+  position: absolute; 
+  width: 20px; 
+  height: 20px; 
+  left: 4px; 
+  top: 4px; 
+  background: white; 
+  border-radius: 50%; 
+  transition: transform .18s ease;
+  box-shadow: 0 2px 6px rgba(16,24,40,0.08);
+}
+
+.switch input:checked + .switch-slider { 
+  background-color: var(--color-primary-500); 
+}
+
+.switch input:checked + .switch-slider::before { 
+  transform: translateX(20px); 
+}
+
+.switch-labels { 
+  display: flex; 
+  flex-direction: column; 
+}
+
+.switch-title { 
+  font-weight: 600; 
+  font-size: 14px; 
+  color: var(--color-text); 
+}
+
+.switch-sub { 
+  font-size: 12px; 
+  color: var(--color-muted); 
+}
+
+/* Logo upload */
+.logo-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logo-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logo-preview:hover {
+  border-color: var(--color-primary-500);
+}
+
+.logo-preview.logo-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: var(--color-background-soft);
+}
+
+.logo-preview.logo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background-soft);
+  color: var(--color-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.logo-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.logo-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.logo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.file-input { 
+  display: none; 
+}
+
+/* Checkbox options */
+.checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.checkbox-option input[type="checkbox"] {
+  /* larger, touch-friendly checkbox styled to match app theme */
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-block;
+  vertical-align: middle;
+  border-radius: 6px;
+  border: 2px solid var(--color-border);
+  background: transparent;
+  position: relative;
+  transition: all 0.15s ease;
+  /* Use modern accent-color where supported to color the checkmark/background */
+  accent-color: var(--color-primary-500);
+}
+
+.checkbox-option input[type="checkbox"]:checked {
+  background: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+}
+
+.checkbox-option input[type="checkbox"]:checked::after {
+  content: '\2713';
+  color: #fff;
+  font-size: 12px;
+  position: absolute;
+  left: 3px;
+  top: -2px;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  margin: 0;
+  line-height: 1.2;
+  user-select: none;
+}
+
+/* Status management */
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.status-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.status-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.status-form, .status-edit {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.status-form h5, .status-edit h5 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 /* Dark mode support */
