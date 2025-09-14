@@ -3,8 +3,10 @@
         <div class="public-content">
             <router-view v-slot="{ Component }">
                 <transition name="fade" mode="out-in">
-                    <component :is="Component" />
-                </transition>
+                        <div class="route-view-wrapper" :key="$route.fullPath">
+                            <component :is="Component" />
+                        </div>
+                    </transition>
             </router-view>
         </div>
     </div>

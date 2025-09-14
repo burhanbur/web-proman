@@ -159,8 +159,8 @@
                   @dragstart="handleDragStart($event, task)"
                   @dragend="handleDragEnd"
                   @click="handleTaskClick(task, $event)"
-                  @touchstart="handleTouchStart($event, task)"
-                  @touchmove="handleTouchMove"
+                  @touchstart.passive="handleTouchStart($event, task)"
+                  @touchmove.passive="handleTouchMove"
                   @touchend="handleTouchEnd"
                   :aria-label="`Task: ${task.title}. Current status: ${task.status?.name || 'Unknown'}. Drag to change status.`"
                   tabindex="0"
@@ -1764,14 +1764,18 @@ const handleTouchStart = (event, task) => {
   };
   touchCurrentPosition.value = { ...touchStartPosition.value };
   
-  // Prevent text selection
-  event.preventDefault();
+  // We rely on CSS `touch-action: none` on the draggable card to prevent
+  // native scrolling and gestures. Avoid calling event.preventDefault()
+  // here so the browser can register passive listeners and remain responsive.
 };
 
 const handleTouchMove = (event) => {
   if (!touchStarted.value || !draggedTask.value) return;
-  
-  event.preventDefault();
+
+  // Do not call event.preventDefault() here. We set `touch-action: none`
+  // in CSS for .task-card so the browser won't perform native scrolling
+  // while interacting with a draggable card. Using passive listeners
+  // improves scrolling responsiveness and avoids the browser warning.
   const touch = event.touches[0];
   touchCurrentPosition.value = {
     x: touch.clientX,
@@ -2545,6 +2549,7 @@ const openCreateStatusModal = () => {
 
 const openEditStatusModal = (status) => {
   isStatusEditing.value = true;
+  console.log(status);
   statusForm.value = { id: status.id, name: status.name || '', color: status.color || '#17a2b8', is_completed: !!status.is_completed, is_cancelled: !!status.is_cancelled };
   showStatusModal.value = true;
 };

@@ -35,7 +35,10 @@
             <div class="container content-inner">
                 <router-view v-slot="{ Component }">
                     <transition name="fade" mode="out-in">
-                        <component :is="Component" />
+                        <!-- Wrap the routed component in a single element so Transition has an element root to animate -->
+                        <div class="route-view-wrapper" :key="$route.fullPath">
+                            <component :is="Component" />
+                        </div>
                     </transition>
                 </router-view>
             </div>

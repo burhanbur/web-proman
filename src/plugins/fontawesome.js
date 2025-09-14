@@ -90,6 +90,14 @@ import {
   faFile,
   faEllipsisH,
   faFilePdf,
+  faFileWord,
+  faFileExcel,
+  faFilePowerpoint,
+  faFileZipper,
+  faFileVideo,
+  faFileAudio,
+  faFileText,
+  faImage,
   faExternalLinkAlt
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -185,5 +193,13 @@ library.add(
   faFile,
   faFilePdf,
   faExternalLinkAlt,
+  faFileWord,
+  faFileExcel,
+  faFilePowerpoint,
+  faFileZipper,
+  faFileVideo,
+  faFileAudio,
+  faFileText,
+  faImage,
   faEllipsisH
 );
