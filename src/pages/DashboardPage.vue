@@ -81,10 +81,10 @@
           </div>
           <h3>Belum ada tugas</h3>
           <p>Mulai dengan membuat tugas pertama Anda</p>
-          <button class="btn btn-primary" @click="showCreateTaskModal = true">
+          <!-- <button class="btn btn-primary" @click="showCreateTaskModal = true">
             <font-awesome-icon icon="plus" />
             Buat Tugas Pertama
-          </button>
+          </button> -->
         </div>
 
         <!-- Kanban View -->
@@ -976,7 +976,7 @@ const loadTasks = async (filterValue = null) => {
       params.project = parseInt(filter.split('-')[1]);
     }
 
-    const res = await taskService.list(params);
+    const res = await taskService.todo(params);
     const items = res.data.data || res.data || [];
 
     allTasks.value = items.map(item => ({

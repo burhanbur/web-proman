@@ -9,6 +9,7 @@ export const taskService = {
     remove: (uuid) => api.delete(`/tasks/${uuid}`),
 
     recent: (params) => api.get('/tasks/recent', { params }),
+    todo: (params) => api.get('/tasks/todo', { params }),
 
     // Update task status
     updateTaskStatus(uuid, payload) {
