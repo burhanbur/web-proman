@@ -1079,6 +1079,18 @@
         </div>
       </div>
     </div>
+
+    <!-- Task Modal -->
+    <TaskModal
+      :show="showTaskModal"
+      :task="selectedTask"
+      :task-statuses="taskStatuses"
+      :task-priorities="taskPriorities"
+      :project-members="project?.members || []"
+      @close="handleTaskModalClose"
+      @task-updated="handleTaskUpdated"
+      @task-deleted="handleTaskDeleted"
+    />
 </template>
 
 <script setup>
@@ -1091,6 +1103,7 @@ import { noteService } from '@/api/services/noteService';
 import { userService } from '@/api/services/userService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
+import TaskModal from '@/components/TaskModal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -1112,6 +1125,11 @@ const showCreateTaskModal = ref(false);
 const notes = ref([]);
 const newNoteContent = ref('');
 const creatingNote = ref(false);
+
+// Task Modal state
+const showTaskModal = ref(false);
+const selectedTask = ref(null);
+const taskPriorities = ref([]);
 const showCreateNoteModal = ref(false);
 const selectedFiles = ref([]);
 const isDragOver = ref(false);
@@ -1167,6 +1185,7 @@ const fileTypeFilter = ref('');
 onMounted(async () => {
   await loadProject();
   await loadTaskStatuses();
+  await loadTaskPriorities();
   await loadActivities();
   await loadAttachments(route.params.projectSlug || project.value?.slug);
   loading.value = false;
@@ -1252,6 +1271,24 @@ const loadTaskStatuses = async () => {
     taskStatuses.value = response.data.data || [];
   } catch (error) {
     console.error('Error loading task statuses:', error);
+  }
+};
+
+// Load task priorities
+const loadTaskPriorities = async () => {
+  try {
+    // You may need to adjust this API endpoint based on your backend
+    const response = await taskService.getPriorities(); // or priorityService.list()
+    taskPriorities.value = response.data.data || [];
+  } catch (error) {
+    console.error('Error loading task priorities:', error);
+    // Fallback priorities if API fails
+    taskPriorities.value = [
+      { id: 1, name: 'Low', color: '#28A745' },
+      { id: 2, name: 'Medium', color: '#FFC107' },
+      { id: 3, name: 'High', color: '#DC3545' },
+      { id: 4, name: 'Urgent', color: '#7d0000' }
+    ];
   }
 };
 
@@ -1639,8 +1676,8 @@ const getActivityTypeLabel = (type) => {
 
 // Actions
 const openTaskDetail = (task) => {
-  // Implement task detail modal or navigation
-  console.log('Open task detail:', task);
+  selectedTask.value = task;
+  showTaskModal.value = true;
 };
 
 const handleTaskClick = (task, event) => {
@@ -2807,6 +2844,34 @@ const saveProjectSettings = async () => {
   } finally {
     savingSettings.value = false;
   }
+};
+
+// TaskModal handlers
+const handleTaskModalClose = () => {
+  showTaskModal.value = false;
+  selectedTask.value = null;
+};
+
+const handleTaskUpdated = (updatedTask) => {
+  // Find and update the task in the tasks array
+  const taskIndex = tasks.value.findIndex(t => t.id === updatedTask.id);
+  if (taskIndex !== -1) {
+    tasks.value[taskIndex] = updatedTask;
+  }
+  
+  // Refresh project data to get updated stats
+  refreshProject();
+};
+
+const handleTaskDeleted = (taskId) => {
+  // Remove task from tasks array
+  tasks.value = tasks.value.filter(t => t.id !== taskId);
+  
+  // Refresh project data to get updated stats
+  refreshProject();
+  
+  // Close modal
+  handleTaskModalClose();
 };
 </script>
 

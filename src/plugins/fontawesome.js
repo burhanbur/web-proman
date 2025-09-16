@@ -98,6 +98,7 @@ import {
   faFileAudio,
   faFileText,
   faImage,
+  faComments,
   faExternalLinkAlt
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -201,5 +202,6 @@ library.add(
   faFileAudio,
   faFileText,
   faImage,
+  faComments,
   faEllipsisH
 );

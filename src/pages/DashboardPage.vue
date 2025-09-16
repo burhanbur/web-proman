@@ -747,6 +747,18 @@
       </div>
     </div>
   </div>
+
+  <!-- Task Modal -->
+  <TaskModal
+    :show="showTaskModal"
+    :task="selectedTask"
+    :task-statuses="taskStatuses"
+    :task-priorities="taskPriorities"
+    :project-members="[]"
+    @close="handleTaskModalClose"
+    @task-updated="handleTaskUpdated"
+    @task-deleted="handleTaskDeleted"
+  />
 </template>
 
 <script setup>
@@ -759,6 +771,7 @@ import { taskService } from '@/api/services/taskService';
 import { useAuthStore } from '@/stores/auth';
 import { auditLogsService } from '@/api/services/auditLogsService';
 import { errorToast, successToast } from '@/utils/toast';
+import TaskModal from '@/components/TaskModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -785,6 +798,11 @@ const recentTasks = ref([]);
 const showCreateWorkspaceModal = ref(false);
 const showCreateProjectModal = ref(false);
 const showCreateTaskModal = ref(false);
+
+// Task Modal state
+const showTaskModal = ref(false);
+const selectedTask = ref(null);
+const taskStatuses = ref([]);
 
 // Workspace form data
 const workspaceForm = ref({
@@ -838,6 +856,8 @@ const loadPriorities = async () => {
     console.error('Error loading priorities:', error);
   }
 };
+
+// Load task statuses will be called when task is clicked - removed from here
 
 // Load data on mount
 onMounted(async () => {
@@ -1443,9 +1463,28 @@ const addTask = (statusId) => {
   // Implementation for adding task
 };
 
-const openTaskDetail = (task) => {
-  console.log('Open task detail:', task);
-  // Implementation for opening task detail
+const openTaskDetail = async (task) => {
+  try {
+    // Load task statuses from the task's project
+    if (task.project && task.project.slug) {
+      const response = await projectService.getProjectStatus(task.project.slug);
+      const statuses = response.data.data || response.data || [];
+      taskStatuses.value = statuses.map(status => ({
+        id: status.id || status.status_id,
+        name: status.name,
+        color: status.color || '#6c757d'
+      }));
+    } else {
+      // Fallback jika project tidak ada
+      taskStatuses.value = [];
+    }
+  } catch (error) {
+    console.error('Error loading task statuses:', error);
+    taskStatuses.value = [];
+  }
+  
+  selectedTask.value = task;
+  showTaskModal.value = true;
 };
 
 const toggleTaskMenu = (taskId) => {
@@ -1629,6 +1668,44 @@ const createWorkspace = async () => {
   } finally {
     createWorkspaceLoading.value = false;
   }
+};
+
+// TaskModal handlers
+const handleTaskModalClose = () => {
+  showTaskModal.value = false;
+  selectedTask.value = null;
+};
+
+const handleTaskUpdated = (updatedTask) => {
+  // Find and update the task in different arrays
+  const taskIndex = allTasks.value.findIndex(t => t.id === updatedTask.id);
+  if (taskIndex !== -1) {
+    allTasks.value[taskIndex] = updatedTask;
+  }
+  
+  const listTaskIndex = listTasks.value.findIndex(t => t.id === updatedTask.id);
+  if (listTaskIndex !== -1) {
+    listTasks.value[listTaskIndex] = updatedTask;
+  }
+  
+  // Refresh tasks and activities
+  loadTasks();
+  loadRecentTasks();
+  loadRecentActivities();
+};
+
+const handleTaskDeleted = (taskId) => {
+  // Remove task from arrays
+  allTasks.value = allTasks.value.filter(t => t.id !== taskId);
+  listTasks.value = listTasks.value.filter(t => t.id !== taskId);
+  
+  // Refresh tasks and activities
+  loadTasks();
+  loadRecentTasks();
+  loadRecentActivities();
+  
+  // Close modal
+  handleTaskModalClose();
 };
 </script>
 
