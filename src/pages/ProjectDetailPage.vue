@@ -1104,6 +1104,7 @@ import { userService } from '@/api/services/userService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
 import TaskModal from '@/components/TaskModal.vue';
+import { priorityService } from '@/api/services/priorityService';
 
 const route = useRoute();
 const router = useRouter();
@@ -1278,7 +1279,7 @@ const loadTaskStatuses = async () => {
 const loadTaskPriorities = async () => {
   try {
     // You may need to adjust this API endpoint based on your backend
-    const response = await taskService.getPriorities(); // or priorityService.list()
+    const response = await priorityService.list(); // or priorityService.list()
     taskPriorities.value = response.data.data || [];
   } catch (error) {
     console.error('Error loading task priorities:', error);

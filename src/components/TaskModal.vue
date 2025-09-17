@@ -41,8 +41,8 @@
             <!-- Task Meta Information Row 1 -->
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Status</label>
-                <select v-model="taskData.status.status_id" class="form-select" @change="markAsModified">
+                  <label class="form-label">Status</label>
+                  <select v-model="taskData.status_id" class="form-select" @change="markAsModified">
                   <option value="">Pilih Status</option>
                   <option v-for="status in taskStatuses" :key="status.id" :value="status.id">
                     {{ status.name }}
@@ -51,7 +51,7 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Prioritas</label>
-                <select v-model="taskData.priority.priority_id" class="form-select" @change="markAsModified">
+                  <select v-model="taskData.priority_id" class="form-select" @change="markAsModified">
                   <option value="">Pilih Prioritas</option>
                   <option v-for="priority in taskPriorities" :key="priority.id" :value="priority.id">
                     {{ priority.name }}
@@ -65,7 +65,7 @@
               <div class="form-group">
                 <label class="form-label">Target Selesai</label>
                 <input 
-                  v-model="taskData.due_date" 
+                  v-model="dueDateModel" 
                   type="date" 
                   class="form-input"
                   @input="markAsModified"
@@ -110,15 +110,15 @@
                 <div v-if="showAssigneeSelector" class="assignee-selector">
                   <div 
                     v-for="member in availableMembers" 
-                    :key="member.id"
+                    :key="member.user_id"
                     class="member-option"
                     @click="addAssignee(member)"
                   >
                     <div class="member-avatar">
-                      <img v-if="member.avatar" :src="member.avatar" :alt="member.name" />
-                      <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.name) }}</div>
+                      <img v-if="member.avatar" :src="member.avatar" :alt="member.user_name" />
+                      <div v-else class="member-avatar-fallback">{{ getMemberInitials(member.user_name) }}</div>
                     </div>
-                    <span class="member-name">{{ member.name }}</span>
+                    <span class="member-name">{{ member.user_name }}</span>
                   </div>
                 </div>
               </div>
@@ -282,7 +282,17 @@ const emit = defineEmits(['close', 'task-updated', 'task-deleted']);
 const authStore = useAuthStore();
 
 // Reactive data
-const taskData = ref({});
+// ensure taskData always has flat fields used by the template to avoid undefined reads
+const taskData = ref({
+  id: null,
+  uuid: null,
+  title: '',
+  description: '',
+  status_id: null,
+  priority_id: null,
+  due_date: null,
+  assignees: []
+});
 const originalTaskData = ref({});
 const isModified = ref(false);
 const saving = ref(false);
@@ -304,7 +314,9 @@ const availableMembers = computed(() => {
   if (!props.projectMembers || !taskData.value.assignees) return props.projectMembers;
   
   const assignedIds = taskData.value.assignees.map(a => a.user_id);
-  return props.projectMembers.filter(member => !assignedIds.includes(member.id));
+  const returnValue = props.projectMembers.filter(member => !assignedIds.includes(member.id));
+  console.log('Available members:', returnValue);
+  return returnValue;
 });
 
 // Methods
@@ -321,21 +333,38 @@ const initializeTaskData = async () => {
     const response = await taskService.get(props.task.uuid || props.task.id);
     const freshTaskData = response.data.data || response.data;
     
-    // Use fresh data from API
-    taskData.value = { ...freshTaskData };
-    originalTaskData.value = { ...freshTaskData, assignees: [...(freshTaskData.assignees || [])] };
+    // Use fresh data from API and normalize flat fields
+    taskData.value = {
+      id: freshTaskData.id || freshTaskData.uuid || null,
+      uuid: freshTaskData.uuid || null,
+      title: freshTaskData.title || '',
+      description: freshTaskData.description || '',
+      status_id: freshTaskData.status_id || freshTaskData.status?.status_id || freshTaskData.status?.id || null,
+      priority_id: freshTaskData.priority_id || freshTaskData.priority?.priority_id || freshTaskData.priority?.id || null,
+      due_date: freshTaskData.due_date || freshTaskData.dueDate || null,
+      assignees: (freshTaskData.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null }))
+    };
+    originalTaskData.value = { ...taskData.value, assignees: [...(taskData.value.assignees || [])] };
     isModified.value = false;
     lastOpenTaskId.value = id || null;
-
-    console.log('Initialized fresh task data:', taskData.value);
 
     // Load comments when task is set
     loadComments();
   } catch (error) {
     console.error('Error fetching fresh task data:', error);
-    // Fallback to props data if API fails
-    taskData.value = { ...props.task };
-    originalTaskData.value = { ...props.task, assignees: [...(props.task.assignees || [])] };
+    // Fallback to props data if API fails - normalize flat fields
+    const p = props.task || {};
+    taskData.value = {
+      id: p.id || p.uuid || null,
+      uuid: p.uuid || null,
+      title: p.title || '',
+      description: p.description || '',
+      status_id: p.status_id || p.status?.status_id || p.status?.id || null,
+      priority_id: p.priority_id || p.priority?.priority_id || p.priority?.id || null,
+      due_date: p.due_date || p.dueDate || null,
+      assignees: (p.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null }))
+    };
+    originalTaskData.value = { ...taskData.value, assignees: [...(taskData.value.assignees || [])] };
     isModified.value = false;
     lastOpenTaskId.value = id || null;
 
@@ -349,6 +378,59 @@ const initializeTaskData = async () => {
 const markAsModified = () => {
   isModified.value = true;
 };
+
+// Normalize due_date for <input type="date"> which requires yyyy-MM-dd.
+// This computed provides a safe view for the date input while preserving
+// the original datetime string (including time) in taskData.value.due_date.
+const dueDateModel = computed({
+  get() {
+    const v = taskData.value.due_date;
+    if (!v) return null;
+
+    // If it's already in YYYY-MM-DD format, return as-is
+    // Otherwise try to parse common datetime formats and return yyyy-MM-dd
+    // Accepts: 'YYYY-MM-DD', 'YYYY-MM-DD HH:mm:ss', ISO strings, etc.
+    // Use Date to parse ISO-like strings; for 'YYYY-MM-DD HH:mm:ss' replace space with 'T'
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+
+    let d = null;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(v)) {
+      d = new Date(v.replace(' ', 'T'));
+    } else {
+      d = new Date(v);
+    }
+
+    if (isNaN(d.getTime())) return null;
+
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  },
+  set(val) {
+    if (!val) {
+      taskData.value.due_date = null;
+      markAsModified();
+      return;
+    }
+
+    // val is in yyyy-MM-dd. Try to preserve time component if original had one.
+    const original = taskData.value.due_date;
+    let timePart = '';
+    if (original) {
+      // Try to extract time from original like 'YYYY-MM-DD HH:mm:ss' or ISO
+      const m = original.match(/(\d{2}:\d{2}:\d{2})$/);
+      if (m) timePart = ` ${m[1]}`;
+      else {
+        const isoMatch = original.match(/T(\d{2}:\d{2}:\d{2})/);
+        if (isoMatch) timePart = ` ${isoMatch[1]}`;
+      }
+    }
+
+    taskData.value.due_date = `${val}${timePart}`.trim();
+    markAsModified();
+  }
+});
 
 const closeModal = () => {
   if (isModified.value) {
@@ -418,11 +500,11 @@ const addAssignee = (member) => {
     taskData.value.assignees = [];
   }
   
-  if (!taskData.value.assignees.find(a => a.user_id === member.id)) {
+  if (!taskData.value.assignees.find(a => a.user_id === member.user_id)) {
     taskData.value.assignees.push({
-      user_id: member.id,
-      name: member.name,
-      email: member.email
+      user_id: member.user_id,
+      name: member.user_name,
+      email: member.user_email
     });
     markAsModified();
   }
