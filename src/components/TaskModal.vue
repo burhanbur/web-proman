@@ -148,6 +148,84 @@
                 Hapus Tugas
               </button>
             </div>
+            
+            <!-- Attachments for Task (drag & drop) -->
+            <div class="form-group">
+              <label class="form-label">Lampiran Tugas</label>
+              <div
+                class="file-drop-area"
+                :class="{ 'is-dragover': taskDropActive }"
+                @dragover.prevent="onTaskDragOver"
+                @dragenter.prevent="onTaskDragEnter"
+                @dragleave.prevent="onTaskDragLeave"
+                @drop.prevent="onTaskDrop"
+                @click="triggerTaskFileInput"
+                role="button"
+                tabindex="0"
+              >
+                <input ref="taskFileInput" type="file" multiple class="sr-only" @change="onTaskFilesSelected" />
+                <div class="file-drop-content">
+                  <font-awesome-icon icon="paperclip" />
+                  <span v-if="taskAttachments.length === 0">Tarik dan lepas file di sini, atau klik untuk memilih (multi)</span>
+                  <span v-else>{{ taskAttachments.length }} file dipilih</span>
+                </div>
+              </div>
+
+              <div v-if="taskAttachments.length" class="file-previews">
+                <div v-for="(f, idx) in taskAttachments" :key="f._uid" class="file-preview">
+                  <div class="file-meta">
+                    <div class="file-name">{{ f.name }}</div>
+                    <div class="file-size">{{ formatBytes(f.size) }}</div>
+                  </div>
+                  <button type="button" class="btn btn-outline btn-sm" @click="removeTaskAttachment(idx)">Hapus</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Existing Task Attachments Display -->
+            <div v-if="taskData.attachments && taskData.attachments.length > 0" class="form-group">
+              <label class="form-label">Lampiran Tugas Saat Ini</label>
+              <div class="existing-attachments">
+                <div v-for="attachment in taskData.attachments" :key="attachment.attachment_id" class="attachment-item">
+                  <div class="attachment-info">
+                    <div class="attachment-icon">
+                      <font-awesome-icon 
+                        :icon="getFileIcon(attachment.mime_type)" 
+                        size="lg"
+                        :class="getFileIconClass(attachment.mime_type)"
+                      />
+                    </div>
+                    <div class="attachment-details">
+                      <div class="attachment-name">{{ attachment.original_filename }}</div>
+                      <div class="attachment-meta">
+                        <span class="attachment-size">{{ formatBytes(attachment.file_size) }}</span>
+                        <span class="attachment-type">{{ attachment.mime_type }}</span>
+                        <span class="attachment-date">{{ formatCommentDate(attachment.created_at) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="attachment-actions">
+                    <a 
+                      @click="downloadAttachment(attachment)" 
+                      class="btn btn-outline btn-sm"
+                      title="Download file"
+                      style="cursor: pointer;"
+                    >
+                      <font-awesome-icon icon="download" size="sm" />
+                      Download
+                    </a>
+                    <button 
+                      @click="deleteTaskAttachment(attachment)" 
+                      class="btn btn-outline btn-sm btn-delete"
+                      title="Hapus lampiran"
+                    >
+                      <font-awesome-icon icon="trash" size="sm" />
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -191,6 +269,44 @@
                   </div>
                   <div class="comment-body">
                     <p>{{ comment.comment }}</p>
+                    
+                    <!-- Comment Attachments Display -->
+                    <div v-if="comment.attachments && comment.attachments.length > 0" class="comment-attachments">
+                      <div class="comment-attachments-label">
+                        <font-awesome-icon icon="paperclip" size="sm" />
+                        {{ comment.attachments.length }} lampiran
+                      </div>
+                      <div class="comment-attachments-list">
+                        <div v-for="attachment in comment.attachments" :key="attachment.attachment_id" class="comment-attachment-item">
+                          <div class="comment-attachment-info">
+                            <font-awesome-icon 
+                              :icon="getFileIcon(attachment.mime_type)" 
+                              size="sm"
+                              :class="getFileIconClass(attachment.mime_type)"
+                            />
+                            <span class="comment-attachment-name">{{ attachment.original_filename }}</span>
+                            <span class="comment-attachment-size">({{ formatBytes(attachment.file_size) }})</span>
+                          </div>
+                          <div class="comment-attachment-actions">
+                            <a 
+                              @click="downloadAttachment(attachment)" 
+                              class="comment-attachment-download"
+                              title="Download file"
+                              style="cursor: pointer;"
+                            >
+                              <font-awesome-icon icon="download" size="sm" />
+                            </a>
+                            <button 
+                              @click="deleteCommentAttachment(attachment, comment)" 
+                              class="comment-attachment-delete"
+                              title="Hapus lampiran"
+                            >
+                              <font-awesome-icon icon="trash" size="sm" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div class="comment-actions" v-if="canEditComment(comment)">
                     <button 
@@ -226,6 +342,37 @@
                 @keydown.ctrl.enter="addComment"
               ></textarea>
             </div>
+            <!-- Comment attachments (drag & drop) -->
+            <div class="form-group">
+              <div
+                class="file-drop-area comment-drop"
+                :class="{ 'is-dragover': commentDropActive }"
+                @dragover.prevent="onCommentDragOver"
+                @dragenter.prevent="onCommentDragEnter"
+                @dragleave.prevent="onCommentDragLeave"
+                @drop.prevent="onCommentDrop"
+                @click="triggerCommentFileInput"
+                role="button"
+                tabindex="0"
+              >
+                <input ref="commentFileInput" type="file" multiple class="sr-only" @change="onCommentFilesSelected" />
+                <div class="file-drop-content">
+                  <font-awesome-icon icon="paperclip" />
+                  <span v-if="commentAttachments.length === 0">Tambahkan lampiran untuk komentar (klik atau seret file)</span>
+                  <span v-else>{{ commentAttachments.length }} file dilampirkan</span>
+                </div>
+              </div>
+
+              <div v-if="commentAttachments.length" class="file-previews">
+                <div v-for="(f, idx) in commentAttachments" :key="f._uid" class="file-preview">
+                  <div class="file-meta">
+                    <div class="file-name">{{ f.name }}</div>
+                    <div class="file-size">{{ formatBytes(f.size) }}</div>
+                  </div>
+                  <button type="button" class="btn btn-outline btn-sm" @click="removeCommentAttachment(idx)">Hapus</button>
+                </div>
+              </div>
+            </div>
             <div class="comment-actions">
               <button 
                 @click="addComment" 
@@ -246,8 +393,12 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
+// template refs for file inputs
+const taskFileInput = ref(null);
+const commentFileInput = ref(null);
 import { taskService } from '@/api/services/taskService';
 import { commentService } from '@/api/services/commentService';
+import { attachmentService } from '@/api/services/attachmentService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
 
@@ -291,7 +442,8 @@ const taskData = ref({
   status_id: null,
   priority_id: null,
   due_date: null,
-  assignees: []
+  assignees: [],
+  attachments: []
 });
 const originalTaskData = ref({});
 const isModified = ref(false);
@@ -303,6 +455,11 @@ const comments = ref([]);
 const newComment = ref('');
 const loadingComments = ref(false);
 const addingComment = ref(false);
+// Attachments state for task and comments
+const taskAttachments = ref([]); // array of File
+const commentAttachments = ref([]);
+const taskDropActive = ref(false);
+const commentDropActive = ref(false);
 
 // Computed
 const currentUser = computed(() => authStore.user);
@@ -342,14 +499,19 @@ const initializeTaskData = async () => {
       status_id: freshTaskData.status_id || freshTaskData.status?.status_id || freshTaskData.status?.id || null,
       priority_id: freshTaskData.priority_id || freshTaskData.priority?.priority_id || freshTaskData.priority?.id || null,
       due_date: freshTaskData.due_date || freshTaskData.dueDate || null,
-      assignees: (freshTaskData.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null }))
+      assignees: (freshTaskData.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null })),
+      attachments: freshTaskData.attachments || []
     };
     originalTaskData.value = { ...taskData.value, assignees: [...(taskData.value.assignees || [])] };
     isModified.value = false;
     lastOpenTaskId.value = id || null;
 
-    // Load comments when task is set
-    loadComments();
+  // Reset attachments state for fresh task
+  taskAttachments.value = [];
+  commentAttachments.value = [];
+
+  // Load comments when task is set
+  loadComments();
   } catch (error) {
     console.error('Error fetching fresh task data:', error);
     // Fallback to props data if API fails - normalize flat fields
@@ -362,7 +524,8 @@ const initializeTaskData = async () => {
       status_id: p.status_id || p.status?.status_id || p.status?.id || null,
       priority_id: p.priority_id || p.priority?.priority_id || p.priority?.id || null,
       due_date: p.due_date || p.dueDate || null,
-      assignees: (p.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null }))
+      assignees: (p.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null })),
+      attachments: p.attachments || []
     };
     originalTaskData.value = { ...taskData.value, assignees: [...(taskData.value.assignees || [])] };
     isModified.value = false;
@@ -370,8 +533,12 @@ const initializeTaskData = async () => {
 
     console.log('Fallback to props task data:', taskData.value);
     
-    // Load comments when task is set
-    loadComments();
+  // Reset attachments state for fresh task
+  taskAttachments.value = [];
+  commentAttachments.value = [];
+
+  // Load comments when task is set
+  loadComments();
   }
 };
 
@@ -445,23 +612,63 @@ const closeModal = () => {
 const saveTask = async () => {
   try {
     saving.value = true;
-    
-    const payload = {
-      title: taskData.value.title,
-      description: taskData.value.description,
-      status_id: taskData.value.status_id,
-      priority_id: taskData.value.priority_id,
-      due_date: taskData.value.due_date,
-      assignees: taskData.value.assignees?.map(a => a.user_id) || []
-    };
+    const hasFiles = taskAttachments.value && taskAttachments.value.length > 0;
 
-    const response = await taskService.update(taskData.value.uuid, payload);
+    // Debug: log current task data
+    console.log('Saving task:', {
+      uuid: taskData.value.uuid,
+      hasFiles,
+      assignees: taskData.value.assignees
+    });
+
+    // If has attachments, use FormData
+    let response;
+    if (hasFiles) {
+      const form = new FormData();
+      form.append('title', taskData.value.title || '');
+      form.append('description', taskData.value.description || '');
+      if (taskData.value.status_id) form.append('status_id', taskData.value.status_id);
+      if (taskData.value.priority_id) form.append('priority_id', taskData.value.priority_id);
+      if (taskData.value.due_date) form.append('due_date', taskData.value.due_date);
+
+      // Use the same attachments[] array format as the working Notes implementation
+      taskAttachments.value.forEach((file) => {
+        // Make sure file is valid before appending
+        if (file instanceof File && file.size > 0) {
+          form.append('attachments[]', file);
+          console.log('Added task file:', file.name, file.size, 'bytes');
+        } else {
+          console.warn('Skipping invalid task file:', file);
+        }
+      });
+
+      // Laravel expects PUT for update routes when using multipart/form-data
+      form.append('_method', 'PUT');
+      
+  console.log('Sending FormData without assignees');
+  // Forward multipart header so server recognizes file parts (match note flow)
+  response = await taskService.updateForm(taskData.value.uuid, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    } else {
+      const payload = {
+        title: taskData.value.title,
+        description: taskData.value.description,
+        status_id: taskData.value.status_id,
+        priority_id: taskData.value.priority_id,
+        due_date: taskData.value.due_date
+        // Note: assignees handled separately via assignTask/unassignTask methods
+      };
+
+      console.log('Sending JSON payload without assignees');
+      response = await taskService.update(taskData.value.uuid, payload);
+    }
     
     originalTaskData.value = { ...taskData.value, assignees: [...(taskData.value.assignees || [])] };
     isModified.value = false;
     
     successToast('Tugas berhasil diperbarui');
     emit('task-updated', response.data);
+  // clear attachments on success
+  taskAttachments.value = [];
     
   } catch (error) {
     console.error('Error updating task:', error);
@@ -541,18 +748,60 @@ const addComment = async () => {
   
   try {
     addingComment.value = true;
+    const hasFiles = commentAttachments.value && commentAttachments.value.length > 0;
     
-    const payload = {
-      comment: newComment.value.trim(),
-      task_id: taskData.value.id
-    };
+    // Debug: ensure we have valid task ID
+    const taskId = taskData.value.id;
+    if (!taskId) {
+      errorToast('Task ID tidak ditemukan');
+      return;
+    }
     
-    const response = await commentService.create(payload);
+    let response;
+    if (hasFiles) {
+      const form = new FormData();
+      form.append('comment', newComment.value.trim());
+      form.append('task_id', taskId);
+      
+      // Debug: log file details before sending
+      console.log('Files to upload:', commentAttachments.value.map(f => ({
+        name: f.name,
+        size: f.size,
+        type: f.type,
+        lastModified: f.lastModified
+      })));
+      
+      // Append attachments[] to match ProjectDetailPage (Catatan) implementation
+      commentAttachments.value.forEach((file) => {
+        if (file instanceof File && file.size > 0) {
+          form.append('attachments[]', file);
+          console.log('Added comment file:', file.name, file.size, 'bytes');
+        } else {
+          console.warn('Skipping invalid comment file:', file);
+        }
+      });
+
+      console.log('Sending comment with FormData:', {
+        comment: newComment.value.trim(),
+        task_id: taskId,
+        attachments: commentAttachments.value.length
+      });
+
+      // Pass multipart header like the working notes flow so the server validates files correctly
+      response = await commentService.createForm(form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    } else {
+      const payload = {
+        comment: newComment.value.trim(),
+        task_id: taskId
+      };
+      response = await commentService.create(payload);
+    }
     // Add the new comment to the beginning of the comments list
     // Response might be wrapped in data property, so handle both cases
     const newCommentData = response.data.data || response.data;
     comments.value.unshift(newCommentData);
     newComment.value = '';
+  commentAttachments.value = [];
     
     successToast('Komentar berhasil ditambahkan');
     
@@ -563,6 +812,95 @@ const addComment = async () => {
     addingComment.value = false;
   }
 };
+
+// Drag & Drop and file helpers for task attachments
+const triggerTaskFileInput = () => {
+  if (taskFileInput.value) taskFileInput.value.click();
+};
+
+const onTaskFilesSelected = (e) => {
+  const files = Array.from(e.target.files || []);
+  addFilesToTask(files);
+  // reset input so same file can be selected again
+  e.target.value = null;
+};
+
+const onTaskDragOver = (e) => {
+  e.dataTransfer.dropEffect = 'copy';
+  taskDropActive.value = true;
+};
+const onTaskDragEnter = (e) => { taskDropActive.value = true; };
+const onTaskDragLeave = (e) => { taskDropActive.value = false; };
+const onTaskDrop = (e) => {
+  taskDropActive.value = false;
+  const files = Array.from(e.dataTransfer.files || []);
+  addFilesToTask(files);
+};
+
+const addFilesToTask = (files) => {
+  // simple limit: ignore zero-size files and keep cumulative count reasonable
+  files.forEach((f) => {
+    // Validate file before adding
+    if (f instanceof File && f.size > 0) {
+      f._uid = `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
+      taskAttachments.value.push(f);
+      console.log('Added task file:', f.name, f.size, 'bytes');
+    } else {
+      console.warn('Skipping invalid task file:', f);
+    }
+  });
+  markAsModified();
+};
+
+const removeTaskAttachment = (idx) => {
+  taskAttachments.value.splice(idx, 1);
+  markAsModified();
+};
+
+// Comment attachments (reuse logic)
+const triggerCommentFileInput = () => {
+  if (commentFileInput.value) commentFileInput.value.click();
+};
+
+const onCommentFilesSelected = (e) => {
+  const files = Array.from(e.target.files || []);
+  addFilesToComment(files);
+  e.target.value = null;
+};
+
+const onCommentDragOver = (e) => { e.dataTransfer.dropEffect = 'copy'; commentDropActive.value = true; };
+const onCommentDragEnter = (e) => { commentDropActive.value = true; };
+const onCommentDragLeave = (e) => { commentDropActive.value = false; };
+const onCommentDrop = (e) => { commentDropActive.value = false; const files = Array.from(e.dataTransfer.files || []); addFilesToComment(files); };
+
+const addFilesToComment = (files) => {
+  files.forEach((f) => {
+    // Validate file before adding
+    if (f instanceof File && f.size > 0) {
+      f._uid = `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
+      commentAttachments.value.push(f);
+      console.log('Added comment file:', f.name, f.size, 'bytes');
+    } else {
+      console.warn('Skipping invalid comment file:', f);
+    }
+  });
+};
+
+const removeCommentAttachment = (idx) => {
+  commentAttachments.value.splice(idx, 1);
+};
+
+// small helper to format bytes
+const formatBytes = (bytes, decimals = 2) => {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+// (template refs defined above: taskFileInput, commentFileInput)
 
 const editComment = (comment) => {
   // TODO: Implement edit comment functionality
@@ -616,6 +954,111 @@ const formatCommentDate = (dateString) => {
     month: 'short',
     day: 'numeric'
   });
+};
+
+// Attachment helper functions
+const getFileIcon = (mimeType) => {
+  if (!mimeType) return 'file';
+  
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'music';
+  if (mimeType.includes('pdf')) return 'file-pdf';
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'file-word';
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'file-excel';
+  if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return 'file-powerpoint';
+  if (mimeType.includes('zip') || mimeType.includes('archive')) return 'file-archive';
+  if (mimeType.includes('text/')) return 'file-lines';
+  
+  return 'file';
+};
+
+const getFileIconClass = (mimeType) => {
+  if (!mimeType) return 'text-gray-500';
+  
+  if (mimeType.startsWith('image/')) return 'text-green-500';
+  if (mimeType.startsWith('video/')) return 'text-purple-500';
+  if (mimeType.startsWith('audio/')) return 'text-blue-500';
+  if (mimeType.includes('pdf')) return 'text-red-500';
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'text-blue-600';
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'text-green-600';
+  if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return 'text-orange-500';
+  if (mimeType.includes('zip') || mimeType.includes('archive')) return 'text-yellow-600';
+  
+  return 'text-gray-500';
+};
+
+const getAttachmentDownloadUrl = (attachment) => {
+  // Construct download URL based on API endpoint pattern
+  // You may need to adjust this based on your backend download endpoint
+  return `/api/attachments/download/${attachment.uuid}`;
+};
+
+// Attachment download and delete handlers
+const downloadAttachment = async (attachment) => {
+  try {
+    // Use attachmentService.download with proper parameters
+    // Based on the API structure, we need modelType, modelId, and uuid
+    const modelType = attachment.file_path.includes('/tasks/') ? 'task' : 'comment';
+    const modelId = attachment.file_path.match(/\/(tasks|comments)\/(\d+)\//)?.[2];
+    
+    const response = await attachmentService.download(modelType, modelId, attachment.uuid);
+    
+    // Create download link for blob response
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', attachment.original_filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error downloading attachment:', error);
+    errorToast('Gagal mengunduh file');
+  }
+};
+
+const deleteTaskAttachment = async (attachment) => {
+  if (confirm(`Yakin ingin menghapus file "${attachment.original_filename}"?`)) {
+    try {
+      await attachmentService.remove(attachment.uuid);
+      
+      // Remove from local task data
+      if (taskData.value.attachments) {
+        taskData.value.attachments = taskData.value.attachments.filter(
+          a => a.attachment_id !== attachment.attachment_id
+        );
+      }
+      
+      successToast('Lampiran berhasil dihapus');
+    } catch (error) {
+      console.error('Error deleting task attachment:', error);
+      errorToast('Gagal menghapus lampiran');
+    }
+  }
+};
+
+const deleteCommentAttachment = async (attachment, comment) => {
+  if (confirm(`Yakin ingin menghapus file "${attachment.original_filename}"?`)) {
+    try {
+      await attachmentService.remove(attachment.uuid);
+      
+      // Remove from local comment data
+      if (comment.attachments) {
+        comment.attachments = comment.attachments.filter(
+          a => a.attachment_id !== attachment.attachment_id
+        );
+        // Update attachments count
+        comment.attachments_count = comment.attachments.length;
+      }
+      
+      successToast('Lampiran berhasil dihapus');
+    } catch (error) {
+      console.error('Error deleting comment attachment:', error);
+      errorToast('Gagal menghapus lampiran');
+    }
+  }
 };
 
 // Watchers
@@ -942,6 +1385,228 @@ watch([
   justify-content: flex-end;
 }
 
+/* File drop & previews */
+.file-drop-area {
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  user-select: none;
+}
+.file-drop-area .file-drop-content {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: #6b7280;
+}
+.file-drop-area.is-dragover {
+  background: #eef2ff;
+  border-color: #3b82f6;
+}
+.file-previews {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.file-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+}
+.file-meta {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+.file-name {
+  font-size: 0.875rem;
+  color: #111827;
+}
+.file-size {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* Existing attachments display */
+.existing-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.attachment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.attachment-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.attachment-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: #f3f4f6;
+}
+
+.attachment-details {
+  flex: 1;
+}
+
+.attachment-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+
+.attachment-meta {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.attachment-meta span + span::before {
+  content: "•";
+  margin-right: 0.5rem;
+  color: #d1d5db;
+}
+
+.attachment-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-delete {
+  color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+.btn-delete:hover {
+  background-color: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+/* Comment attachments */
+.comment-attachments {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.comment-attachments-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.comment-attachments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.comment-attachment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: #f9fafb;
+  border-radius: 4px;
+  border: 1px solid #f3f4f6;
+}
+
+.comment-attachment-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.comment-attachment-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.comment-attachment-name {
+  font-size: 0.75rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.comment-attachment-size {
+  font-size: 0.625rem;
+  color: #9ca3af;
+}
+
+.comment-attachment-download {
+  color: #6b7280;
+  transition: color 0.2s;
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+.comment-attachment-download:hover {
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+.comment-attachment-delete {
+  color: #ef4444;
+  background: none;
+  border: none;
+  transition: all 0.2s;
+  padding: 0.25rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.comment-attachment-delete:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+/* File icon colors */
+.text-green-500 { color: #10b981; }
+.text-purple-500 { color: #8b5cf6; }
+.text-blue-500 { color: #3b82f6; }
+.text-red-500 { color: #ef4444; }
+.text-blue-600 { color: #2563eb; }
+.text-green-600 { color: #059669; }
+.text-orange-500 { color: #f97316; }
+.text-yellow-600 { color: #d97706; }
+.text-gray-500 { color: #6b7280; }
+
+
 .comments-list {
   flex: 1;
   overflow-y: auto;
@@ -1234,6 +1899,76 @@ html.dark .comments-title {
 
 html.dark .comment-count {
   color: #9ca3af;
+}
+
+/* Dark mode for attachments */
+html.dark .existing-attachments {
+  background: #111827;
+  border-color: #374151;
+}
+
+html.dark .attachment-item {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .attachment-info {
+  color: #d1d5db;
+}
+
+html.dark .attachment-icon {
+  background: #111827;
+}
+
+html.dark .attachment-name {
+  color: #f9fafb;
+}
+
+html.dark .attachment-meta {
+  color: #9ca3af;
+}
+
+html.dark .attachment-actions a,
+html.dark .attachment-actions .btn {
+  color: #d1d5db;
+  border-color: #374151;
+  background: transparent;
+}
+
+html.dark .attachment-actions .btn-delete {
+  color: #f87171 !important;
+  border-color: #f87171 !important;
+}
+
+html.dark .attachment-actions .btn-delete:hover {
+  background-color: #1f2937 !important;
+  color: #fca5a5 !important;
+}
+
+html.dark .comment-attachments {
+  border-top-color: #374151;
+}
+
+html.dark .comment-attachment-item {
+  background: #111827;
+  border-color: #374151;
+}
+
+html.dark .comment-attachment-name {
+  color: #d1d5db;
+}
+
+html.dark .comment-attachment-size {
+  color: #9ca3af;
+}
+
+html.dark .comment-attachment-delete {
+  color: #f87171;
+}
+
+html.dark .comment-attachment-delete:hover {
+  color: #fca5a5;
+  background: #1f2937;
 }
 
 /* Responsive */

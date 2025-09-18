@@ -9,6 +9,7 @@ export const attachmentService = {
         }
     }),
     update: (uuid, payload) => api.put(`/attachments/${uuid}`, payload),
+    
     remove: (uuid) => api.delete(`/attachments/${uuid}`),
     download: (modelType, modelId, uuid) => api.get(`/attachments/${modelType}/${modelId}/${uuid}/download`, {
         responseType: 'blob'

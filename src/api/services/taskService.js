@@ -13,6 +13,10 @@ export const taskService = {
 
     getComments: (taskId) => api.get(`/tasks/${taskId}/comments`),
 
+    // Update task using FormData (for attachments)
+    // Accept optional axios config as third parameter to allow passing multipart headers
+    updateForm: (uuid, formData, config = {}) => api.post(`/tasks/${uuid}`, formData, config),
+
     // Get task priorities
     getPriorities: () => api.get('/tasks/priorities'),
 
@@ -30,4 +34,12 @@ export const taskService = {
     unassignTask(uuid, userId) {
         return api.delete(`/tasks/${uuid}/assign/${userId}`);
     },
+
+    getTaskRelations(uuid) {
+        return api.get(`/tasks/${uuid}/relations`);
+    },
+
+    getTaskRelationTypes() {
+        return api.get('/tasks/relation-types');
+    }
 };
