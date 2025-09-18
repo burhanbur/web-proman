@@ -71,6 +71,18 @@
                   @input="markAsModified"
                 />
               </div>
+              <div class="form-group">
+                <label class="form-label">Point</label>
+                <input
+                  v-model.number="taskData.point"
+                  type="number"
+                  min="0"
+                  step="1"
+                  class="form-input"
+                  @input="markAsModified"
+                  placeholder="Masukkan point tugas"
+                />
+              </div>
             </div>
 
             <!-- Assignees -->
@@ -124,28 +136,77 @@
               </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="form-actions">
+            <!-- Task Relations Section -->
+            <div class="form-group">
+              <label class="form-label">
+                <font-awesome-icon icon="link" />
+                Relasi Tugas
+              </label>
+              
+              <!-- Related From (Dependencies) - Read Only -->
+              <div class="relations-container" v-if="taskData.related_from && taskData.related_from.length > 0">
+                <h6 class="relation-heading">
+                  <font-awesome-icon icon="arrow-left" />
+                  Bergantung Pada (Read-only)
+                </h6>
+                <div class="relation-list">
+                  <div 
+                    v-for="relation in taskData.related_from" 
+                    :key="relation.task_uuid"
+                    class="relation-item relation-item-readonly"
+                  >
+                    <div class="relation-info">
+                      <span class="relation-task-title">{{ relation.title }}</span>
+                      <span class="relation-type">{{ relation.relation_type }}</span>
+                    </div>
+                    <div class="readonly-indicator">
+                      <font-awesome-icon icon="eye" />
+                    </div>
+                  </div>
+                </div>
+                <p class="relation-note">
+                  <font-awesome-icon icon="exclamation-triangle" />
+                  Untuk menghapus relasi ini, edit dari tugas yang bersangkutan
+                </p>
+              </div>
+
+              <!-- Related To (Dependents) - Editable -->
+              <div class="relations-container" v-if="taskData.related_to && taskData.related_to.length > 0">
+                <h6 class="relation-heading">
+                  <font-awesome-icon icon="arrow-right" />
+                  Tugas Terkait
+                </h6>
+                <div class="relation-list">
+                  <div 
+                    v-for="relation in taskData.related_to" 
+                    :key="relation.task_uuid"
+                    class="relation-item"
+                  >
+                    <div class="relation-info">
+                      <span class="relation-task-title">{{ relation.title }}</span>
+                      <span class="relation-type">{{ relation.relation_type }}</span>
+                    </div>
+                    <button 
+                      @click="removeTaskRelation(relation)"
+                      class="btn-remove-relation"
+                      type="button"
+                      :disabled="saving"
+                    >
+                      <font-awesome-icon icon="times" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Add Relation Button -->
               <button 
-                @click="saveTask" 
-                class="btn btn-primary"
-                :disabled="saving || !isModified"
+                @click="showAddRelationModal"
+                class="btn btn-outline-primary btn-sm"
+                type="button"
+                :disabled="saving || loadingTasks || loadingRelationTypes"
               >
-                <font-awesome-icon v-if="saving" icon="spinner" spin />
-                <font-awesome-icon v-else icon="save" />
-                {{ saving ? 'Menyimpan...' : 'Simpan Perubahan' }}
-              </button>
-              <button @click="cancelChanges" class="btn btn-secondary" :disabled="saving">
-                Batal
-              </button>
-              <button 
-                @click="deleteTask" 
-                class="btn btn-danger"
-                :disabled="saving"
-                v-if="taskData.id"
-              >
-                <font-awesome-icon icon="trash" />
-                Hapus Tugas
+                <font-awesome-icon icon="plus" />
+                Tambah Tugas Terkait
               </button>
             </div>
             
@@ -225,6 +286,33 @@
                   </div>
                 </div>
               </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="form-actions form-group">
+              <button 
+                @click="saveTask" 
+                class="btn btn-primary"
+                :disabled="saving || !isModified"
+              >
+                <font-awesome-icon v-if="saving" icon="spinner" spin />
+                <font-awesome-icon v-else icon="save" />
+                {{ saving ? 'Menyimpan...' : 'Simpan Perubahan' }}
+              </button>
+              <button @click="cancelChanges" class="btn btn-secondary" :disabled="saving">
+
+                <font-awesome-icon icon="undo" />
+                Batalkan Perubahan
+              </button>
+              <button 
+                @click="deleteTask" 
+                class="btn btn-danger"
+                :disabled="saving"
+                v-if="taskData.id"
+              >
+                <font-awesome-icon icon="trash" />
+                Hapus Tugas
+              </button>
             </div>
           </div>
         </div>
@@ -389,6 +477,126 @@
       </div>
     </div>
   </div>
+
+  <!-- Add Relation Modal -->
+  <div 
+    v-if="showAddRelationForm" 
+    class="task-modal-overlay"
+    @click="cancelAddRelation"
+  >
+    <div class="relation-modal" @click.stop>
+      <div class="relation-modal-header">
+        <div class="relation-modal-title">
+          <div class="relation-modal-icon">
+            <font-awesome-icon icon="link" />
+          </div>
+          <h3>Tambah Tugas Terkait</h3>
+        </div>
+        <button @click="cancelAddRelation" class="relation-modal-close">
+          <font-awesome-icon icon="times" />
+        </button>
+      </div>
+      
+      <div class="relation-modal-content">
+        <div class="relation-form-group">
+          <label class="relation-form-label">
+            <font-awesome-icon icon="tasks" />
+            Pilih Tugas
+          </label>
+          <div class="autocomplete-container">
+            <input 
+              v-model="taskSearchQuery"
+              @input="handleTaskSearch($event.target.value)"
+              @focus="taskSearchQuery.length >= 3 && (showTaskDropdown = true)"
+              @blur="handleTaskInputBlur"
+              type="text"
+              class="autocomplete-input"
+              placeholder="Ketik minimal 3 karakter untuk mencari tugas..."
+              :disabled="loadingTasks"
+            />
+            <div v-if="selectedTaskTitle" class="selected-task-indicator">
+              <font-awesome-icon icon="check-circle" />
+              <span>{{ selectedTaskTitle }}</span>
+              <button @click="clearTaskSelection" class="clear-selection">
+                <font-awesome-icon icon="times" />
+              </button>
+            </div>
+            
+            <!-- Dropdown results -->
+            <div v-if="showTaskDropdown" class="autocomplete-dropdown">
+              <div v-if="filteredTasks.length === 0" class="autocomplete-empty">
+                <font-awesome-icon icon="search" />
+                <span>Tidak ada tugas yang ditemukan</span>
+              </div>
+              <div 
+                v-for="task in filteredTasks.slice(0, 10)" 
+                :key="task.id"
+                @click="selectTask(task)"
+                class="autocomplete-item"
+              >
+                <div class="autocomplete-item-content">
+                  <span class="autocomplete-item-title">{{ task.title }}</span>
+                  <span v-if="task.project" class="autocomplete-item-project">
+                    {{ task.project.name }}
+                  </span>
+                </div>
+                <font-awesome-icon icon="chevron-right" class="autocomplete-item-arrow" />
+              </div>
+            </div>
+          </div>
+          
+          <div v-if="loadingTasks" class="relation-loading">
+            <font-awesome-icon icon="spinner" spin />
+            <span>Memuat tugas...</span>
+          </div>
+        </div>
+
+        <div class="relation-form-group">
+          <label class="relation-form-label">
+            <font-awesome-icon icon="cog" />
+            Tipe Relasi
+          </label>
+          <select 
+            v-model="newRelation.relation_type_id"
+            class="relation-form-select"
+            :disabled="loadingRelationTypes"
+            :placeholder="'Pilih tipe relasi'"
+          >
+            <option disabled value="">Pilih tipe relasi</option>
+            <option 
+              v-for="relationType in relationTypes" 
+              :key="relationType.id"
+              :value="relationType.id"
+            >
+              {{ relationType.name }}
+            </option>
+          </select>
+          
+          <div v-if="loadingRelationTypes" class="relation-loading">
+            <font-awesome-icon icon="spinner" spin />
+            <span>Memuat tipe relasi...</span>
+          </div>
+        </div>
+
+        <div class="relation-form-actions">
+          <button 
+            @click="addTaskRelation"
+            class="relation-btn relation-btn-primary"
+            :disabled="!newRelation.related_task_id || !newRelation.relation_type_id"
+          >
+            <font-awesome-icon icon="plus" />
+            <span>Tambah Relasi</span>
+          </button>
+          <button 
+            @click="cancelAddRelation"
+            class="relation-btn relation-btn-secondary"
+          >
+            <span>Batal</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -442,13 +650,33 @@ const taskData = ref({
   status_id: null,
   priority_id: null,
   due_date: null,
+  point: null,
   assignees: [],
-  attachments: []
+  attachments: [],
+  related_from: [],
+  related_to: []
 });
 const originalTaskData = ref({});
 const isModified = ref(false);
 const saving = ref(false);
 const showAssigneeSelector = ref(false);
+
+// Task Relations
+const relationTypes = ref([]);
+const availableTasks = ref([]);
+const loadingRelationTypes = ref(false);
+const loadingTasks = ref(false);
+const showAddRelationForm = ref(false);
+const newRelation = ref({
+  related_task_id: null,
+  relation_type_id: null
+});
+
+// Autocomplete search for tasks
+const taskSearchQuery = ref('');
+const filteredTasks = ref([]);
+const showTaskDropdown = ref(false);
+const selectedTaskTitle = ref('');
 
 // Comments
 const comments = ref([]);
@@ -498,11 +726,19 @@ const initializeTaskData = async () => {
       description: freshTaskData.description || '',
       status_id: freshTaskData.status_id || freshTaskData.status?.status_id || freshTaskData.status?.id || null,
       priority_id: freshTaskData.priority_id || freshTaskData.priority?.priority_id || freshTaskData.priority?.id || null,
-      due_date: freshTaskData.due_date || freshTaskData.dueDate || null,
+  due_date: freshTaskData.due_date || freshTaskData.dueDate || null,
+  point: freshTaskData.point != null ? freshTaskData.point : (freshTaskData.points || freshTaskData.point_value || null),
       assignees: (freshTaskData.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null })),
-      attachments: freshTaskData.attachments || []
+      attachments: freshTaskData.attachments || [],
+      related_from: freshTaskData.related_from || [],
+      related_to: freshTaskData.related_to || []
     };
-    originalTaskData.value = { ...taskData.value, assignees: [...(taskData.value.assignees || [])] };
+    originalTaskData.value = { 
+      ...taskData.value, 
+      assignees: [...(taskData.value.assignees || [])],
+      related_from: [...(taskData.value.related_from || [])],
+      related_to: [...(taskData.value.related_to || [])]
+    };
     isModified.value = false;
     lastOpenTaskId.value = id || null;
 
@@ -512,6 +748,10 @@ const initializeTaskData = async () => {
 
   // Load comments when task is set
   loadComments();
+  
+  // Load relation types and available tasks
+  loadRelationTypes();
+  loadAvailableTasks();
   } catch (error) {
     console.error('Error fetching fresh task data:', error);
     // Fallback to props data if API fails - normalize flat fields
@@ -524,10 +764,18 @@ const initializeTaskData = async () => {
       status_id: p.status_id || p.status?.status_id || p.status?.id || null,
       priority_id: p.priority_id || p.priority?.priority_id || p.priority?.id || null,
       due_date: p.due_date || p.dueDate || null,
+      point: p.point != null ? p.point : (p.points || p.point_value || null),
       assignees: (p.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null })),
-      attachments: p.attachments || []
+      attachments: p.attachments || [],
+      related_from: p.related_from || [],
+      related_to: p.related_to || []
     };
-    originalTaskData.value = { ...taskData.value, assignees: [...(taskData.value.assignees || [])] };
+    originalTaskData.value = { 
+      ...taskData.value, 
+      assignees: [...(taskData.value.assignees || [])],
+      related_from: [...(taskData.value.related_from || [])],
+      related_to: [...(taskData.value.related_to || [])]
+    };
     isModified.value = false;
     lastOpenTaskId.value = id || null;
 
@@ -544,6 +792,29 @@ const initializeTaskData = async () => {
 
 const markAsModified = () => {
   isModified.value = true;
+};
+
+// Refresh task data from server
+const refreshTaskData = async () => {
+  if (!taskData.value.uuid) return;
+  
+  try {
+    const response = await taskService.get(taskData.value.uuid);
+    const freshTaskData = response.data.data || response.data;
+    
+    // Update only attachments and other server-managed data, preserve local changes
+    taskData.value.attachments = freshTaskData.attachments || [];
+    taskData.value.related_from = freshTaskData.related_from || [];
+    // Don't override related_to as it might have local changes
+    
+    // Update original data as well
+    originalTaskData.value.attachments = [...(taskData.value.attachments || [])];
+    originalTaskData.value.related_from = [...(taskData.value.related_from || [])];
+    
+    console.log('Task data refreshed, attachments count:', taskData.value.attachments.length);
+  } catch (error) {
+    console.error('Error refreshing task data:', error);
+  }
 };
 
 // Normalize due_date for <input type="date"> which requires yyyy-MM-dd.
@@ -618,7 +889,9 @@ const saveTask = async () => {
     console.log('Saving task:', {
       uuid: taskData.value.uuid,
       hasFiles,
-      assignees: taskData.value.assignees
+      assignees: taskData.value.assignees,
+      related_to: taskData.value.related_to,
+      related_from: taskData.value.related_from
     });
 
     // If has attachments, use FormData
@@ -630,6 +903,7 @@ const saveTask = async () => {
       if (taskData.value.status_id) form.append('status_id', taskData.value.status_id);
       if (taskData.value.priority_id) form.append('priority_id', taskData.value.priority_id);
       if (taskData.value.due_date) form.append('due_date', taskData.value.due_date);
+      if (taskData.value.point !== null && taskData.value.point !== undefined) form.append('point', taskData.value.point);
 
       // Use the same attachments[] array format as the working Notes implementation
       taskAttachments.value.forEach((file) => {
@@ -642,33 +916,72 @@ const saveTask = async () => {
         }
       });
 
+      // Add assignees to FormData
+      if (taskData.value.assignees && taskData.value.assignees.length > 0) {
+        taskData.value.assignees.forEach((assignee, index) => {
+          form.append(`assignees[${index}][user_id]`, assignee.user_id);
+        });
+      }
+
+      // Add related tasks (only related_to - related_from is read-only)
+      const relatedTasks = taskData.value.related_to || [];
+
+      console.log('FormData - Related tasks to send:', relatedTasks);
+
+      if (relatedTasks.length > 0) {
+        relatedTasks.forEach((relation, index) => {
+          console.log(`FormData - Relation ${index}:`, relation);
+          form.append(`related_tasks[${index}][related_task_id]`, relation.task_id);
+          form.append(`related_tasks[${index}][relation_type_id]`, relation.relation_type_id || 1);
+        });
+      }
+
       // Laravel expects PUT for update routes when using multipart/form-data
       form.append('_method', 'PUT');
       
-  console.log('Sending FormData without assignees');
-  // Forward multipart header so server recognizes file parts (match note flow)
-  response = await taskService.updateForm(taskData.value.uuid, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      console.log('Sending FormData with assignees and relations');
+      console.log('Related tasks count (related_to only):', relatedTasks.length);
+      // Forward multipart header so server recognizes file parts (match note flow)
+      response = await taskService.updateForm(taskData.value.uuid, form, { headers: { 'Content-Type': 'multipart/form-data' } });
     } else {
+      // Only send related_to (Tugas Terkait) - related_from is read-only
+      const relatedTasks = (taskData.value.related_to || []).map(relation => ({
+        related_task_id: relation.task_id,
+        relation_type_id: relation.relation_type_id || 1
+      }));
+
       const payload = {
         title: taskData.value.title,
         description: taskData.value.description,
         status_id: taskData.value.status_id,
         priority_id: taskData.value.priority_id,
-        due_date: taskData.value.due_date
-        // Note: assignees handled separately via assignTask/unassignTask methods
+        due_date: taskData.value.due_date,
+        point: taskData.value.point,
+        assignees: taskData.value.assignees || [],
+        related_tasks: relatedTasks
       };
 
-      console.log('Sending JSON payload without assignees');
+      console.log('Sending JSON payload with assignees and relations:', payload);
+      console.log('Related tasks count (related_to only):', relatedTasks.length);
       response = await taskService.update(taskData.value.uuid, payload);
     }
     
-    originalTaskData.value = { ...taskData.value, assignees: [...(taskData.value.assignees || [])] };
+    originalTaskData.value = { 
+      ...taskData.value, 
+      assignees: [...(taskData.value.assignees || [])],
+      related_from: [...(taskData.value.related_from || [])],
+      related_to: [...(taskData.value.related_to || [])]
+    };
     isModified.value = false;
     
     successToast('Tugas berhasil diperbarui');
     emit('task-updated', response.data);
-  // clear attachments on success
-  taskAttachments.value = [];
+    
+    // Refresh task data to get updated attachments from server
+    await refreshTaskData();
+    
+    // clear attachments on success
+    taskAttachments.value = [];
     
   } catch (error) {
     console.error('Error updating task:', error);
@@ -679,7 +992,12 @@ const saveTask = async () => {
 };
 
 const cancelChanges = () => {
-  taskData.value = { ...originalTaskData.value, assignees: [...(originalTaskData.value.assignees || [])] };
+  taskData.value = { 
+    ...originalTaskData.value, 
+    assignees: [...(originalTaskData.value.assignees || [])],
+    related_from: [...(originalTaskData.value.related_from || [])],
+    related_to: [...(originalTaskData.value.related_to || [])]
+  };
   isModified.value = false;
 };
 
@@ -796,12 +1114,20 @@ const addComment = async () => {
       };
       response = await commentService.create(payload);
     }
-    // Add the new comment to the beginning of the comments list
-    // Response might be wrapped in data property, so handle both cases
-    const newCommentData = response.data.data || response.data;
-    comments.value.unshift(newCommentData);
+    
+    // Clear form first
     newComment.value = '';
-  commentAttachments.value = [];
+    commentAttachments.value = [];
+    
+    // If comment had attachments, refresh both task data and comments to ensure attachments are displayed
+    if (hasFiles) {
+      await refreshTaskData();
+      await loadComments(); // Refresh comments to get complete attachment data
+    } else {
+      // For comments without files, just add the new comment to the beginning of the list
+      const newCommentData = response.data.data || response.data;
+      comments.value.unshift(newCommentData);
+    }
     
     successToast('Komentar berhasil ditambahkan');
     
@@ -954,6 +1280,166 @@ const formatCommentDate = (dateString) => {
     month: 'short',
     day: 'numeric'
   });
+};
+
+// Task Relations methods
+const loadRelationTypes = async () => {
+  try {
+    loadingRelationTypes.value = true;
+    const response = await taskService.getTaskRelationTypes();
+    relationTypes.value = response.data.data || response.data || [];
+  } catch (error) {
+    console.error('Error loading relation types:', error);
+    errorToast('Gagal memuat tipe relasi');
+  } finally {
+    loadingRelationTypes.value = false;
+  }
+};
+
+const loadAvailableTasks = async () => {
+  try {
+    loadingTasks.value = true;
+    const response = await taskService.list();
+    // Filter out current task from available tasks
+    const allTasks = response.data.data || response.data || [];
+    availableTasks.value = allTasks.filter(task => task.uuid !== taskData.value.uuid);
+  } catch (error) {
+    console.error('Error loading available tasks:', error);
+    errorToast('Gagal memuat daftar tugas');
+  } finally {
+    loadingTasks.value = false;
+  }
+};
+
+const showAddRelationModal = () => {
+  newRelation.value = {
+    related_task_id: null,
+    relation_type_id: null
+  };
+  taskSearchQuery.value = '';
+  selectedTaskTitle.value = '';
+  filteredTasks.value = [];
+  showTaskDropdown.value = false;
+  showAddRelationForm.value = true;
+};
+
+const cancelAddRelation = () => {
+  showAddRelationForm.value = false;
+  newRelation.value = {
+    related_task_id: null,
+    relation_type_id: null
+  };
+  taskSearchQuery.value = '';
+  selectedTaskTitle.value = '';
+  filteredTasks.value = [];
+  showTaskDropdown.value = false;
+};
+
+// Autocomplete search methods
+const handleTaskSearch = (query) => {
+  taskSearchQuery.value = query;
+  
+  if (query.length >= 3) {
+    filteredTasks.value = availableTasks.value.filter(task => 
+      task.title.toLowerCase().includes(query.toLowerCase())
+    );
+    showTaskDropdown.value = filteredTasks.value.length > 0;
+  } else {
+    filteredTasks.value = [];
+    showTaskDropdown.value = false;
+  }
+  
+  // Clear selection if query doesn't match selected task
+  if (selectedTaskTitle.value && !selectedTaskTitle.value.toLowerCase().includes(query.toLowerCase())) {
+    newRelation.value.related_task_id = null;
+    selectedTaskTitle.value = '';
+  }
+};
+
+const selectTask = (task) => {
+  newRelation.value.related_task_id = task.id;
+  selectedTaskTitle.value = task.title;
+  taskSearchQuery.value = task.title;
+  showTaskDropdown.value = false;
+};
+
+const handleTaskInputBlur = () => {
+  // Delay hiding dropdown to allow click events on dropdown items
+  setTimeout(() => {
+    showTaskDropdown.value = false;
+  }, 150);
+};
+
+const clearTaskSelection = () => {
+  newRelation.value.related_task_id = null;
+  selectedTaskTitle.value = '';
+  taskSearchQuery.value = '';
+  filteredTasks.value = [];
+  showTaskDropdown.value = false;
+};
+
+const addTaskRelation = async () => {
+  if (!newRelation.value.related_task_id || !newRelation.value.relation_type_id) {
+    errorToast('Pilih tugas dan tipe relasi');
+    return;
+  }
+
+  try {
+    // Add to local state immediately for better UX
+    const selectedTask = availableTasks.value.find(t => t.id === newRelation.value.related_task_id);
+    const selectedRelationType = relationTypes.value.find(rt => rt.id === newRelation.value.relation_type_id);
+    
+    console.log('Adding relation:', {
+      selected_task_id: newRelation.value.related_task_id,
+      selected_relation_type_id: newRelation.value.relation_type_id,
+      selectedTask: selectedTask,
+      selectedRelationType: selectedRelationType
+    });
+    
+    if (selectedTask && selectedRelationType) {
+      const newRelationData = {
+        task_id: selectedTask.id,
+        task_uuid: selectedTask.uuid,
+        title: selectedTask.title,
+        relation_type: selectedRelationType.name,
+        relation_type_id: selectedRelationType.id
+      };
+
+      console.log('New relation data:', newRelationData);
+
+      // Always add to related_to (this task → related task)
+      taskData.value.related_to.push(newRelationData);
+      
+      console.log('Current related_to:', taskData.value.related_to);
+      
+      markAsModified();
+    }
+
+    showAddRelationForm.value = false;
+    newRelation.value = {
+      related_task_id: null,
+      relation_type_id: null
+    };
+    
+    successToast('Tugas terkait berhasil ditambahkan');
+  } catch (error) {
+    console.error('Error adding task relation:', error);
+    errorToast('Gagal menambahkan tugas terkait');
+  }
+};
+
+const removeTaskRelation = (relation) => {
+  try {
+    const index = taskData.value.related_to.findIndex(r => r.task_uuid === relation.task_uuid);
+    if (index > -1) {
+      taskData.value.related_to.splice(index, 1);
+      markAsModified();
+      successToast('Tugas terkait berhasil dihapus');
+    }
+  } catch (error) {
+    console.error('Error removing task relation:', error);
+    errorToast('Gagal menghapus tugas terkait');
+  }
 };
 
 // Attachment helper functions
@@ -1119,15 +1605,18 @@ watch([
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 0.5rem 2rem;
+  border-bottom: 1px solid transparent;
+  /* Use primary color gradient from design tokens */
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  color: white;
   flex-shrink: 0;
 }
 
 .modal-title {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #111827;
+  color: inherit;
   margin: 0;
 }
 
@@ -1135,7 +1624,7 @@ watch([
   background: none;
   border: none;
   font-size: 1.25rem;
-  color: #6b7280;
+  color: rgba(255,255,255,0.95);
   cursor: pointer;
   padding: 0.5rem;
   border-radius: 6px;
@@ -1143,8 +1632,8 @@ watch([
 }
 
 .btn-close:hover {
-  color: #ef4444;
-  background-color: #fef2f2;
+  color: white;
+  background-color: rgba(255,255,255,0.08);
 }
 
 .modal-content {
@@ -1746,12 +2235,12 @@ watch([
 }
 
 .btn-primary {
-  background-color: #3b82f6;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-primary-600));
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #2563eb;
+  filter: brightness(0.95);
 }
 
 .btn-secondary {
@@ -1810,7 +2299,8 @@ html.dark .task-modal {
 }
 
 html.dark .modal-header {
-  border-bottom-color: #374151;
+  border-bottom-color: rgba(255,255,255,0.04);
+  background: linear-gradient(135deg, var(--color-primary-700), var(--color-primary-800));
 }
 
 html.dark .modal-title {
@@ -1943,6 +2433,584 @@ html.dark .attachment-actions .btn-delete {
 html.dark .attachment-actions .btn-delete:hover {
   background-color: #1f2937 !important;
   color: #fca5a5 !important;
+}
+
+/* Task Relations Styles */
+.relations-container {
+  margin-bottom: 1rem;
+}
+
+.relation-heading {
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.relation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.relation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.relation-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.relation-item-readonly {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  opacity: 0.8;
+}
+
+.relation-item-readonly:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.readonly-indicator {
+  color: #64748b;
+  padding: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.relation-note {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #f8fafc;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.relation-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.relation-task-title {
+  font-weight: 500;
+  color: #111827;
+  font-size: 0.875rem;
+}
+
+.relation-type {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: #e5e7eb;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+.btn-remove-relation {
+  background: none;
+  border: none;
+  color: #dc2626;
+  padding: 0.375rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-remove-relation:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.btn-remove-relation:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-outline-primary {
+  background: none;
+  border: 1px solid #3b82f6;
+  color: #3b82f6;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-outline-primary:hover {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-outline-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Relation Modal Styles */
+.relation-modal {
+  background: white;
+  border-radius: 16px;
+  max-width: 520px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.relation-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  color: white;
+}
+
+.relation-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.relation-modal-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.125rem;
+}
+
+.relation-modal-title h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.relation-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.relation-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.relation-modal-content {
+  padding: 2rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.relation-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.relation-form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.relation-form-select {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: #fafbfc;
+}
+
+.relation-form-select:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(23,162,184,0.12);
+  background: white;
+}
+
+/* Autocomplete Styles */
+.autocomplete-container {
+  position: relative;
+}
+
+.autocomplete-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: #fafbfc;
+}
+
+.autocomplete-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: white;
+}
+
+.autocomplete-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.selected-task-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #ecfdf5;
+  border: 1px solid #d1fae5;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #065f46;
+}
+
+.clear-selection {
+  background: none;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  padding: 0.125rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  margin-left: auto;
+}
+
+.clear-selection:hover {
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.autocomplete-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+  text-align: center;
+  justify-content: center;
+}
+
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.autocomplete-item:hover {
+  background: #f8fafc;
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.autocomplete-item-title {
+  font-weight: 500;
+  color: #111827;
+  font-size: 0.875rem;
+}
+
+.autocomplete-item-project {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.autocomplete-item-arrow {
+  color: #d1d5db;
+  font-size: 0.75rem;
+}
+
+.relation-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+}
+
+.relation-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.relation-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  flex: 1;
+  justify-content: center;
+}
+
+.relation-btn-primary {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  color: white;
+}
+
+.relation-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.relation-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.relation-btn-secondary {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.relation-btn-secondary:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.loading-text {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Dark mode for relations */
+html.dark .relation-heading {
+  color: #f9fafb;
+}
+
+html.dark .relation-item {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .relation-item:hover {
+  background: #111827;
+  border-color: #4b5563;
+}
+
+html.dark .relation-task-title {
+  color: #f9fafb;
+}
+
+html.dark .relation-type {
+  background: #374151;
+  color: #d1d5db;
+}
+
+html.dark .btn-remove-relation {
+  color: #f87171;
+}
+
+html.dark .btn-remove-relation:hover {
+  background: #1f2937;
+  color: #fca5a5;
+}
+
+html.dark .btn-outline-primary {
+  border-color: #60a5fa;
+  color: #60a5fa;
+}
+
+html.dark .btn-outline-primary:hover {
+  background: #60a5fa;
+  color: #111827;
+}
+
+html.dark .loading-text {
+  color: #9ca3af;
+}
+
+/* Dark mode for readonly relations */
+html.dark .relation-item-readonly {
+  background: #111827 !important;
+  border-color: #374151 !important;
+}
+
+html.dark .relation-item-readonly:hover {
+  background: #1f2937 !important;
+  border-color: #4b5563 !important;
+}
+
+html.dark .readonly-indicator {
+  color: #9ca3af;
+}
+
+html.dark .relation-note {
+  background: #111827;
+  color: #9ca3af;
+}
+
+/* Dark mode for new relation modal */
+html.dark .relation-modal {
+  background: #1f2937;
+}
+
+html.dark .relation-modal-header {
+  background: linear-gradient(135deg, var(--color-primary-700), var(--color-primary-800));
+  border-bottom-color: rgba(255,255,255,0.04);
+  color: #f9fafb;
+}
+
+html.dark .relation-modal-content {
+  background: #1f2937;
+}
+
+html.dark .relation-form-label {
+  color: #f9fafb;
+}
+
+html.dark .relation-form-select,
+html.dark .autocomplete-input {
+  background: #111827;
+  border-color: #374151;
+  color: #f9fafb;
+}
+
+html.dark .relation-form-select:focus,
+html.dark .autocomplete-input:focus {
+  border-color: #4f46e5;
+  background: #1f2937;
+}
+
+html.dark .selected-task-indicator {
+  background: #065f46;
+  border-color: #059669;
+  color: #d1fae5;
+}
+
+html.dark .autocomplete-dropdown {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .autocomplete-item {
+  border-bottom-color: #374151;
+}
+
+html.dark .autocomplete-item:hover {
+  background: #111827;
+}
+
+html.dark .autocomplete-item-title {
+  color: #f9fafb;
+}
+
+html.dark .autocomplete-item-project {
+  color: #9ca3af;
+}
+
+html.dark .autocomplete-empty {
+  color: #9ca3af;
+}
+
+html.dark .relation-loading {
+  color: #9ca3af;
+}
+
+html.dark .relation-form-actions {
+  border-top-color: #374151;
+}
+
+html.dark .relation-btn-secondary {
+  background: #374151;
+  border-color: #4b5563;
+  color: #d1d5db;
+}
+
+html.dark .relation-btn-secondary:hover {
+  background: #4b5563;
+  color: #f9fafb;
 }
 
 html.dark .comment-attachments {

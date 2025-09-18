@@ -35,10 +35,6 @@ export const taskService = {
         return api.delete(`/tasks/${uuid}/assign/${userId}`);
     },
 
-    getTaskRelations(uuid) {
-        return api.get(`/tasks/${uuid}/relations`);
-    },
-
     getTaskRelationTypes() {
         return api.get('/tasks/relation-types');
     }
