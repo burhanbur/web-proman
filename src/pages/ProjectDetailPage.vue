@@ -47,7 +47,7 @@
             <div class="task-summary header-right" role="status" aria-label="Ringkasan tugas proyek">
               <div class="task-summary-top">
                 <div class="summary-left">
-                  <div class="summary-number">{{ tasksCompleted }} / {{ tasksTotal }}</div>
+                  <div class="summary-number">{{ tasksCompleted }} / {{ tasksTotal - tasksCancelled }}</div>
                   <div class="summary-label">Tugas Selesai</div>
                 </div>
                 <div class="summary-percent">
@@ -234,8 +234,8 @@
               </select>
               <select v-model="filterAssignee" class="filter-select">
                 <option value="">Semua Penugas</option>
-                <option v-for="member in project.members" :key="member.id" :value="member.id">
-                  {{ member.name }}
+                <option v-for="member in project.members" :key="member.user_id" :value="member.user_id">
+                  {{ member.user_name }}
                 </option>
               </select>
               <select v-model="filterPriority" class="filter-select">
@@ -2387,7 +2387,7 @@ const tasksIncomplete = computed(() => {
 const tasksCompletedPercent = computed(() => {
   const total = tasksTotal.value || 0;
   if (total === 0) return 0;
-  return Math.round((tasksCompleted.value / total) * 100);
+  return Math.round((tasksCompleted.value / (total - tasksCancelled.value )) * 100);
 });
 
 // Return a readable role label for a member

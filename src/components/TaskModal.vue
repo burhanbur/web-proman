@@ -143,7 +143,7 @@
                 Relasi Tugas
               </label>
               
-              <div class="relations-container">
+              <div class="relations-container" :class="{ 'relations-empty': (!taskData.related_from || taskData.related_from.length === 0) && (!taskData.related_to || taskData.related_to.length === 0) }">
                 <!-- Related From (Dependencies) - Read Only -->
                 <div v-if="taskData.related_from && taskData.related_from.length > 0">
                   <h6 class="relation-heading">
@@ -2422,6 +2422,14 @@ watch([
   background: #fafafa;
 }
 
+/* Compact style for comment file drops */
+.file-drop-area.comment-drop {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  border-width: 1px;
+  font-size: 0.875rem;
+}
+
 .attachments-container {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -2436,6 +2444,13 @@ watch([
   gap: 0.75rem;
   color: #6b7280;
   text-align: center;
+}
+
+/* Compact content for comment drops */
+.comment-drop .file-drop-content {
+  flex-direction: row;
+  gap: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .file-drop-text {
@@ -2474,6 +2489,14 @@ watch([
   padding-top: 1rem;
 }
 
+/* Compact file previews for comments */
+.comment-drop + .file-previews,
+.comment-edit-form .file-previews {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  gap: 0.375rem;
+}
+
 .file-preview {
   display: flex;
   justify-content: space-between;
@@ -2482,6 +2505,13 @@ watch([
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
+}
+
+/* Compact file preview for comments */
+.comment-drop + .file-previews .file-preview,
+.comment-edit-form .file-previews .file-preview {
+  padding: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .file-meta {
@@ -3129,6 +3159,12 @@ html.dark .attachment-actions .btn-delete:hover {
   background: #f9fafb;
 }
 
+/* Compact relations container when empty */
+.relations-container.relations-empty {
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 .relation-heading {
   color: #374151;
   font-size: 0.875rem;
@@ -3193,7 +3229,12 @@ html.dark .attachment-actions .btn-delete:hover {
 
 .relations-empty-state {
   text-align: center;
-  padding: 2rem 1rem;
+  padding: 1.5rem 1rem;
+}
+
+/* More compact empty state */
+.relations-container.relations-empty .relations-empty-state {
+  padding: 1rem 0.75rem;
 }
 
 .empty-relations-content {
@@ -3203,8 +3244,18 @@ html.dark .attachment-actions .btn-delete:hover {
   gap: 0.75rem;
 }
 
+/* More compact empty relations content */
+.relations-container.relations-empty .empty-relations-content {
+  gap: 0.5rem;
+}
+
 .empty-relations-icon {
   color: #9ca3af;
+}
+
+/* Smaller icon for compact empty state */
+.relations-container.relations-empty .empty-relations-icon {
+  font-size: 1.25rem;
 }
 
 .empty-relations-text {
@@ -3842,6 +3893,26 @@ html.dark .comment-attachment-delete:hover {
   .form-row {
     grid-template-columns: 1fr;
   }
+  
+  /* Even more compact on mobile for relations and comment attachments */
+  .relations-container.relations-empty {
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .relations-container.relations-empty .relations-empty-state {
+    padding: 0.75rem 0.5rem;
+  }
+  
+  .comment-drop {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .comment-drop + .file-previews,
+  .comment-edit-form .file-previews {
+    margin-top: 0.375rem;
+    padding-top: 0.375rem;
+  }
 }
 
 @media (max-width: 640px) {
@@ -3859,6 +3930,25 @@ html.dark .comment-attachment-delete:hover {
   
   .form-actions {
     flex-direction: column;
+  }
+  
+  /* Extra compact on small screens */
+  .comment-drop .file-drop-content {
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8125rem;
+  }
+  
+  .relations-container.relations-empty .empty-relations-content {
+    gap: 0.375rem;
+  }
+  
+  .relations-container.relations-empty .empty-relations-text {
+    font-size: 0.8125rem;
+  }
+  
+  .relations-container.relations-empty .empty-relations-subtext {
+    font-size: 0.6875rem;
   }
 }
 </style>
