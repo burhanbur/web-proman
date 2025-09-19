@@ -173,7 +173,7 @@
 
                 <!-- Related To (Dependents) - Editable -->
                 <div v-if="taskData.related_to && taskData.related_to.length > 0">
-                  <h6 class="relation-heading mt-4">
+                  <h6 class="relation-heading">
                     <font-awesome-icon icon="arrow-right" />
                     Tugas Terkait
                   </h6>
@@ -383,7 +383,79 @@
                     <span class="comment-time">{{ formatCommentDate(comment.created_at) }}</span>
                   </div>
                   <div class="comment-body">
-                    <p>{{ comment.comment }}</p>
+                    <!-- Edit mode -->
+                    <div v-if="editingCommentId === (comment.uuid || comment.id)" class="comment-edit-form">
+                      <textarea 
+                        v-model="editCommentText"
+                        class="comment-edit-textarea"
+                        rows="3"
+                        @keydown.ctrl.enter="saveCommentEdit(comment)"
+                        @keydown.esc="cancelCommentEdit"
+                      ></textarea>
+                      
+                      <!-- Edit Comment attachments (drag & drop) -->
+                      <div class="form-group">
+                        <div
+                          class="file-drop-area comment-drop"
+                          :class="{ 'is-dragover': editCommentDropActive }"
+                          @dragover.prevent="onEditCommentDragOver"
+                          @dragenter.prevent="onEditCommentDragEnter"
+                          @dragleave.prevent="onEditCommentDragLeave"
+                          @drop.prevent="onEditCommentDrop"
+                          @click="triggerEditCommentFileInput"
+                          role="button"
+                          tabindex="0"
+                        >
+                          <input 
+                            ref="editCommentFileInput" 
+                            type="file" 
+                            multiple 
+                            style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;"
+                            @change="onEditCommentFilesSelected" 
+                          />
+                          <div class="file-drop-content">
+                            <font-awesome-icon icon="paperclip" />
+                            <span v-if="editCommentAttachments.length === 0">Tambahkan lampiran (klik atau seret file)</span>
+                            <span v-else>{{ editCommentAttachments.length }} file dilampirkan</span>
+                          </div>
+                        </div>
+
+                        <div v-if="editCommentAttachments.length" class="file-previews">
+                          <div v-for="(f, idx) in editCommentAttachments" :key="f._uid" class="file-preview">
+                            <div class="file-meta">
+                              <div class="file-name">{{ f.name }}</div>
+                              <div class="file-size">{{ formatBytes(f.size) }}</div>
+                            </div>
+                            <button type="button" class="btn btn-outline btn-sm" @click="removeEditCommentAttachment(idx)">Hapus</button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div class="comment-edit-actions">
+                        <button 
+                          @click="saveCommentEdit(comment)"
+                          class="btn btn-primary btn-sm"
+                          :disabled="!editCommentText.trim() || savingComment"
+                        >
+                          <font-awesome-icon v-if="savingComment" icon="spinner" spin />
+                          <font-awesome-icon v-else icon="save" />
+                          {{ savingComment ? 'Menyimpan...' : 'Simpan' }}
+                        </button>
+                        <button 
+                          @click="cancelCommentEdit"
+                          class="btn btn-secondary btn-sm"
+                          :disabled="savingComment"
+                        >
+                          <font-awesome-icon icon="times" />
+                          Batal
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <!-- View mode -->
+                    <div v-else>
+                      <p>{{ comment.comment }}</p>
+                    </div>
                     
                     <!-- Comment Attachments Display -->
                     <div v-if="comment.attachments && comment.attachments.length > 0" class="comment-attachments">
@@ -634,10 +706,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 // template refs for file inputs
 const taskFileInput = ref(null);
 const commentFileInput = ref(null);
+const editCommentFileInput = ref(null);
 import { taskService } from '@/api/services/taskService';
 import { commentService } from '@/api/services/commentService';
 import { attachmentService } from '@/api/services/attachmentService';
@@ -721,6 +794,14 @@ const comments = ref([]);
 const newComment = ref('');
 const loadingComments = ref(false);
 const addingComment = ref(false);
+// Edit comment state
+const editingCommentId = ref(null);
+const editCommentText = ref('');
+const originalCommentText = ref('');
+const savingComment = ref(false);
+// Edit comment attachments
+const editCommentAttachments = ref([]);
+const editCommentDropActive = ref(false);
 // Attachments state for task and comments
 const taskAttachments = ref([]); // array of File
 const commentAttachments = ref([]);
@@ -1002,6 +1083,12 @@ const resetModalState = () => {
   selectedTaskTitle.value = '';
   filteredTasks.value = [];
   showTaskDropdown.value = false;
+  // Reset comment edit state
+  editingCommentId.value = null;
+  editCommentText.value = '';
+  originalCommentText.value = '';
+  savingComment.value = false;
+  editCommentAttachments.value = [];
 };
 
 const saveTask = async () => {
@@ -1406,6 +1493,70 @@ const removeCommentAttachment = (idx) => {
   commentAttachments.value.splice(idx, 1);
 };
 
+// Edit comment attachments handlers (reuse logic from comment attachments)
+const triggerEditCommentFileInput = async () => {
+  await nextTick(); // Ensure DOM is updated
+  
+  if (editCommentFileInput.value && typeof editCommentFileInput.value.click === 'function') {
+    editCommentFileInput.value.click();
+  } else {
+    // Fallback: create temporary file input
+    console.warn('Using fallback file input method');
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.multiple = true;
+    fileInput.style.display = 'none';
+    fileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      addFilesToEditComment(files);
+      document.body.removeChild(fileInput);
+    });
+    document.body.appendChild(fileInput);
+    fileInput.click();
+  }
+};
+
+const onEditCommentFilesSelected = (e) => {
+  const files = Array.from(e.target.files || []);
+  addFilesToEditComment(files);
+  e.target.value = null;
+};
+
+const onEditCommentDragOver = (e) => { 
+  e.dataTransfer.dropEffect = 'copy'; 
+  editCommentDropActive.value = true; 
+};
+
+const onEditCommentDragEnter = (e) => { 
+  editCommentDropActive.value = true; 
+};
+
+const onEditCommentDragLeave = (e) => { 
+  editCommentDropActive.value = false; 
+};
+
+const onEditCommentDrop = (e) => { 
+  editCommentDropActive.value = false; 
+  const files = Array.from(e.dataTransfer.files || []); 
+  addFilesToEditComment(files); 
+};
+
+const addFilesToEditComment = (files) => {
+  files.forEach((f) => {
+    // Validate file before adding
+    if (f instanceof File && f.size > 0) {
+      f._uid = `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
+      editCommentAttachments.value.push(f);
+    } else {
+      console.warn('Skipping invalid edit comment file:', f);
+    }
+  });
+};
+
+const removeEditCommentAttachment = (idx) => {
+  editCommentAttachments.value.splice(idx, 1);
+};
+
 // small helper to format bytes
 const formatBytes = (bytes, decimals = 2) => {
   if (!bytes) return '0 B';
@@ -1419,7 +1570,104 @@ const formatBytes = (bytes, decimals = 2) => {
 // (template refs defined above: taskFileInput, commentFileInput)
 
 const editComment = (comment) => {
-  // TODO: Implement edit comment functionality
+  // Set edit mode for this specific comment
+  editingCommentId.value = comment.uuid || comment.id;
+  editCommentText.value = comment.comment;
+  originalCommentText.value = comment.comment;
+  // Clear any previous edit attachments
+  editCommentAttachments.value = [];
+};
+
+const saveCommentEdit = async (comment) => {
+  if (!editCommentText.value.trim()) {
+    errorToast('Komentar tidak boleh kosong');
+    return;
+  }
+
+  try {
+    savingComment.value = true;
+    
+    const hasFiles = editCommentAttachments.value && editCommentAttachments.value.length > 0;
+    let response;
+    
+    if (hasFiles) {
+      // Use FormData for multipart upload
+      const form = new FormData();
+      form.append('comment', editCommentText.value.trim());
+      form.append('_method', 'PUT'); // Laravel method spoofing for PUT request
+      
+      // Append attachments
+      editCommentAttachments.value.forEach((file) => {
+        if (file instanceof File && file.size > 0) {
+          form.append('attachments[]', file);
+        } else {
+          console.warn('Skipping invalid edit comment file:', file);
+        }
+      });
+
+      // Use updateForm method with multipart headers
+      response = await commentService.updateForm(comment.uuid || comment.id, form, { 
+        headers: { 'Content-Type': 'multipart/form-data' } 
+      });
+    } else {
+      // Regular JSON update without files
+      const payload = {
+        comment: editCommentText.value.trim()
+      };
+
+      response = await commentService.update(comment.uuid || comment.id, payload);
+    }
+    
+    // Update the comment in local state
+    const commentIndex = comments.value.findIndex(c => 
+      (c.uuid || c.id) === (comment.uuid || comment.id)
+    );
+    
+    if (commentIndex !== -1) {
+      if (hasFiles) {
+        // If files were uploaded, refresh comments to get complete data
+        await loadComments();
+      } else {
+        // For text-only updates, just update the comment text
+        comments.value[commentIndex] = {
+          ...comments.value[commentIndex],
+          comment: editCommentText.value.trim(),
+          updated_at: new Date().toISOString()
+        };
+      }
+    }
+    
+    // Exit edit mode and clear attachments
+    editingCommentId.value = null;
+    editCommentText.value = '';
+    originalCommentText.value = '';
+    editCommentAttachments.value = [];
+    
+    successToast('Komentar berhasil diperbarui');
+    
+  } catch (error) {
+    console.error('Error updating comment:', error);
+    
+    let errorMessage = 'Gagal memperbarui komentar';
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.response?.data?.errors) {
+      const errors = Object.values(error.response.data.errors).flat();
+      errorMessage = errors.join(', ');
+    }
+    
+    errorToast(errorMessage);
+  } finally {
+    savingComment.value = false;
+  }
+};
+
+const cancelCommentEdit = () => {
+  // Exit edit mode without saving and clear attachments
+  editingCommentId.value = null;
+  editCommentText.value = '';
+  originalCommentText.value = '';
+  editCommentAttachments.value = [];
 };
 
 const deleteComment = async (commentId) => {
@@ -2513,6 +2761,36 @@ watch([
   word-wrap: break-word;
 }
 
+/* Comment Edit Form Styles */
+.comment-edit-form {
+  margin-bottom: 0.75rem;
+}
+
+.comment-edit-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.comment-edit-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.comment-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
 .comment-actions {
   display: flex;
   gap: 0.5rem;
@@ -2714,6 +2992,18 @@ html.dark .comment-time {
 
 html.dark .comment-body p {
   color: #d1d5db;
+}
+
+/* Dark mode for comment editing */
+html.dark .comment-edit-textarea {
+  background-color: #374151;
+  border-color: #4b5563;
+  color: #f9fafb;
+}
+
+html.dark .comment-edit-textarea:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
 }
 
 html.dark .comments-title {

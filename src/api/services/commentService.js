@@ -9,4 +9,6 @@ export const commentService = {
     // Create comment using FormData (for attachments)
     // Accept optional axios config as second parameter to allow passing multipart headers
     createForm: (formData, config = {}) => api.post('/comments', formData, config),
+    // Update comment using FormData (for attachments)
+    updateForm: (uuid, formData, config = {}) => api.post(`/comments/${uuid}`, formData, config),
 };
