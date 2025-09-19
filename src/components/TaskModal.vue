@@ -10,8 +10,8 @@
       </div>
 
       <!-- Modal Content -->
-      <div class="modal-content">
-        <!-- Task Details (70%) -->
+      <div class="modal-content" :class="{ 'no-comments': !isExistingTask }">
+        <!-- Task Details (70% or 100% when no comments) -->
         <div class="task-section">
           <div class="task-form">
             <!-- Task Title -->
@@ -344,8 +344,8 @@
           </div>
         </div>
 
-        <!-- Comments Section (30%) -->
-        <div class="comments-section">
+        <!-- Comments Section (30%) - Only show for existing tasks -->
+        <div v-if="taskData.id || taskData.uuid" class="comments-section">
           <div class="comments-header">
             <h3 class="comments-title">
               <font-awesome-icon icon="comments" />
@@ -810,6 +810,11 @@ const commentDropActive = ref(false);
 
 // Computed
 const currentUser = computed(() => authStore.user);
+
+// Check if this is an existing task (has id or uuid)
+const isExistingTask = computed(() => {
+  return !!(taskData.value.id || taskData.value.uuid);
+});
 
 // Track last opened task to avoid double-initialization
 const lastOpenTaskId = ref(null);
@@ -2170,6 +2175,12 @@ watch([
   padding: 2rem;
   overflow-y: auto;
   border-right: 1px solid #e5e7eb;
+}
+
+/* When comments section is hidden (new task), task section takes full width */
+.modal-content.no-comments .task-section {
+  flex: 1;
+  border-right: none;
 }
 
 .comments-section {
@@ -3815,6 +3826,12 @@ html.dark .comment-attachment-delete:hover {
     border-right: none;
     border-bottom: 1px solid #e5e7eb;
     max-height: 60vh;
+  }
+  
+  /* When no comments section, task section can use full height */
+  .modal-content.no-comments .task-section {
+    max-height: none;
+    border-bottom: none;
   }
   
   .comments-section {
