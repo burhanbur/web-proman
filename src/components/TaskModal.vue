@@ -737,8 +737,10 @@ const availableMembers = computed(() => {
   if (!props.projectMembers || !taskData.value.assignees) return props.projectMembers;
   
   const assignedIds = taskData.value.assignees.map(a => a.user_id);
-  const returnValue = props.projectMembers.filter(member => !assignedIds.includes(member.id));
-  console.log('Available members:', returnValue);
+  const returnValue = props.projectMembers.filter(member => 
+    !assignedIds.includes(member.user_id) && !assignedIds.includes(member.id)
+  );
+  
   return returnValue;
 });
 
@@ -785,7 +787,7 @@ const initializeTaskData = async () => {
     isModified.value = false;
     lastOpenTaskId.value = null;
 
-    console.log('Initialized new task data:', taskData.value);
+    
     
     // Load relation types and available tasks for new task
     loadRelationTypes();
@@ -858,12 +860,12 @@ const initializeTaskData = async () => {
     isModified.value = false;
     lastOpenTaskId.value = id || null;
 
-    console.log('Fallback to props task data:', taskData.value);
+    
     
   // Reset or load comments depending on task type
   if (!id) {
     // New task - comments already reset at the beginning
-    console.log('New task - comments already reset');
+    
   } else {
     // Existing task - load comments
     loadComments();
@@ -877,22 +879,46 @@ const markAsModified = () => {
 
 // Refresh task data from server
 const refreshTaskData = async () => {
-  if (!taskData.value.uuid) return;
+  if (!taskData.value.uuid && !taskData.value.id) return;
   
   try {
-    const response = await taskService.get(taskData.value.uuid);
+    const response = await taskService.get(taskData.value.uuid || taskData.value.id);
     const freshTaskData = response.data.data || response.data;
     
-    // Update only attachments and other server-managed data, preserve local changes
-    taskData.value.attachments = freshTaskData.attachments || [];
-    taskData.value.related_from = freshTaskData.related_from || [];
-    // Don't override related_to as it might have local changes
+    // Update all task data including assignees and relations to ensure view is current
+    taskData.value = {
+      ...taskData.value,
+      id: freshTaskData.id || taskData.value.id,
+      uuid: freshTaskData.uuid || taskData.value.uuid,
+      title: freshTaskData.title || taskData.value.title,
+      description: freshTaskData.description || taskData.value.description,
+      status_id: freshTaskData.status_id || taskData.value.status_id,
+      priority_id: freshTaskData.priority_id || taskData.value.priority_id,
+      due_date: freshTaskData.due_date || taskData.value.due_date,
+      point: freshTaskData.point !== undefined ? freshTaskData.point : taskData.value.point,
+      project_id: freshTaskData.project_id || taskData.value.project_id,
+      // Ensure assignees are properly updated from server
+      assignees: (freshTaskData.assignees || []).map(a => ({ 
+        user_id: a.user_id || a.id, 
+        name: a.name || a.full_name || null, 
+        avatar: a.avatar || null 
+      })),
+      // Ensure attachments are updated
+      attachments: freshTaskData.attachments || [],
+      // Ensure relations are updated
+      related_from: freshTaskData.related_from || [],
+      related_to: freshTaskData.related_to || []
+    };
     
-    // Update original data as well
-    originalTaskData.value.attachments = [...(taskData.value.attachments || [])];
-    originalTaskData.value.related_from = [...(taskData.value.related_from || [])];
+    // Update original data as well to prevent false modified state
+    originalTaskData.value = { 
+      ...taskData.value,
+      assignees: [...(taskData.value.assignees || [])],
+      related_from: [...(taskData.value.related_from || [])],
+      related_to: [...(taskData.value.related_to || [])]
+    };
     
-    console.log('Task data refreshed, attachments count:', taskData.value.attachments.length);
+    
   } catch (error) {
     console.error('Error refreshing task data:', error);
   }
@@ -985,20 +1011,25 @@ const saveTask = async () => {
     const isNewTask = !taskData.value.id && !taskData.value.uuid;
 
     // Debug: log current task data
-    console.log('Saving task:', {
-      uuid: taskData.value.uuid,
-      id: taskData.value.id,
-      isNewTask,
-      hasFiles,
-      assignees: taskData.value.assignees,
-      related_to: taskData.value.related_to,
-      related_from: taskData.value.related_from
-    });
+    
 
     // If has attachments, use FormData
     let response;
     if (hasFiles) {
       const form = new FormData();
+      
+      // Add files first
+      taskAttachments.value.forEach((file) => {
+        // Make sure file is valid before appending
+        if (file instanceof File && file.size > 0) {
+          form.append('attachments[]', file);
+          
+        } else {
+          console.warn('Skipping invalid task file:', file);
+        }
+      });
+      
+      // Then add other form data
       form.append('title', taskData.value.title || '');
       form.append('description', taskData.value.description || '');
       if (taskData.value.status_id) form.append('status_id', taskData.value.status_id);
@@ -1009,24 +1040,13 @@ const saveTask = async () => {
       // Add project_id for new tasks
       if (isNewTask) {
         const projectId = taskData.value.project_id;
-        console.log('Adding project_id to FormData:', projectId);
+        
         if (projectId) {
           form.append('project_id', projectId);
         } else {
           console.warn('project_id is missing for new task:', taskData.value);
         }
       }
-
-      // Use the same attachments[] array format as the working Notes implementation
-      taskAttachments.value.forEach((file) => {
-        // Make sure file is valid before appending
-        if (file instanceof File && file.size > 0) {
-          form.append('attachments[]', file);
-          console.log('Added task file:', file.name, file.size, 'bytes');
-        } else {
-          console.warn('Skipping invalid task file:', file);
-        }
-      });
 
       // Add assignees to FormData
       if (taskData.value.assignees && taskData.value.assignees.length > 0) {
@@ -1038,26 +1058,22 @@ const saveTask = async () => {
       // Add related tasks (only related_to - related_from is read-only)
       const relatedTasks = taskData.value.related_to || [];
 
-      console.log('FormData - Related tasks to send:', relatedTasks);
+      
 
       if (relatedTasks.length > 0) {
         relatedTasks.forEach((relation, index) => {
-          console.log(`FormData - Relation ${index}:`, relation);
+          
           form.append(`related_tasks[${index}][related_task_id]`, relation.task_id);
           form.append(`related_tasks[${index}][relation_type_id]`, relation.relation_type_id || 1);
         });
       }
 
       if (isNewTask) {
-        // For new task with files, use create endpoint
-        console.log('Creating new task with FormData');
         response = await taskService.create(form, { headers: { 'Content-Type': 'multipart/form-data' } });
       } else {
         // Laravel expects PUT for update routes when using multipart/form-data
         form.append('_method', 'PUT');
         
-        console.log('Updating existing task with FormData');
-        console.log('Related tasks count (related_to only):', relatedTasks.length);
         // Forward multipart header so server recognizes file parts (match note flow)
         response = await taskService.updateForm(taskData.value.uuid, form, { headers: { 'Content-Type': 'multipart/form-data' } });
       }
@@ -1082,41 +1098,57 @@ const saveTask = async () => {
       // Add project_id for new tasks
       if (isNewTask) {
         const projectId = taskData.value.project_id;
-        console.log('Adding project_id to JSON payload:', projectId);
+        
         if (projectId) {
           payload.project_id = projectId;
-        } else {
-          console.warn('project_id is missing for new task:', taskData.value);
         }
       }
 
       if (isNewTask) {
-        console.log('Creating new task with JSON payload:', payload);
+        
         response = await taskService.create(payload);
       } else {
-        console.log('Updating existing task with JSON payload:', payload);
-        console.log('Related tasks count (related_to only):', relatedTasks.length);
+        
         response = await taskService.update(taskData.value.uuid, payload);
       }
     }
     
-    // For new tasks, update taskData with the created task data
-    if (isNewTask && response.data) {
+    // Update taskData with fresh server response for both new and existing tasks
+    if (response.data) {
+      const freshTaskData = response.data.data || response.data;
+      
+      // Update taskData with complete response data, ensuring all fields are properly updated
       taskData.value = {
         ...taskData.value,
-        ...response.data,
-        assignees: response.data.assignees || [],
-        related_from: response.data.related_from || [],
-        related_to: response.data.related_to || []
+        id: freshTaskData.id || taskData.value.id,
+        uuid: freshTaskData.uuid || taskData.value.uuid,
+        title: freshTaskData.title || taskData.value.title,
+        description: freshTaskData.description || taskData.value.description,
+        status_id: freshTaskData.status_id || taskData.value.status_id,
+        priority_id: freshTaskData.priority_id || taskData.value.priority_id,
+        due_date: freshTaskData.due_date || taskData.value.due_date,
+        point: freshTaskData.point !== undefined ? freshTaskData.point : taskData.value.point,
+        project_id: freshTaskData.project_id || taskData.value.project_id,
+        assignees: freshTaskData.assignees || [],
+        attachments: freshTaskData.attachments || [],
+        related_from: freshTaskData.related_from || [],
+        related_to: freshTaskData.related_to || []
       };
       
-      // Refresh all data for new task to get complete information
-      await refreshTaskData();
-      
-      // Refresh available tasks so the new task appears in related tasks dropdown
-      await loadAvailableTasks();
+      // For new tasks, also refresh all related data
+      if (isNewTask) {
+        // Load comments for the newly created task
+        await loadComments();
+        
+        // Refresh available tasks so the new task appears in related tasks dropdown
+        await loadAvailableTasks();
+      }
     }
     
+    // Always refresh task data from server to ensure consistency
+    await refreshTaskData();
+    
+    // Update original data with the refreshed data
     originalTaskData.value = { 
       ...taskData.value, 
       assignees: [...(taskData.value.assignees || [])],
@@ -1129,17 +1161,32 @@ const saveTask = async () => {
     successToast(successMessage);
     emit('task-updated', response.data);
     
-    // Refresh task data to get updated attachments from server (for existing tasks)
-    if (!isNewTask) {
-      await refreshTaskData();
-    }
+    // Always refresh comments to ensure consistency
+    await loadComments();
     
     // clear attachments on success
     taskAttachments.value = [];
     
   } catch (error) {
     console.error('Error updating task:', error);
-    errorToast('Gagal memperbarui tugas');
+    
+    // Log detailed error response for debugging
+    if (error.response) {
+      console.error('Error response status:', error.response.status);
+      console.error('Error response data:', error.response.data);
+      console.error('Error response headers:', error.response.headers);
+    }
+    
+    // Show more specific error message
+    let errorMessage = 'Gagal memperbarui tugas';
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.response?.data?.errors) {
+      const errors = Object.values(error.response.data.errors).flat();
+      errorMessage = errors.join(', ');
+    }
+    
+    errorToast(errorMessage);
   } finally {
     saving.value = false;
   }
@@ -1183,7 +1230,8 @@ const addAssignee = (member) => {
     taskData.value.assignees.push({
       user_id: member.user_id,
       name: member.user_name,
-      email: member.user_email
+      email: member.user_email,
+      avatar: member.avatar || null
     });
     markAsModified();
   }
@@ -1193,8 +1241,13 @@ const addAssignee = (member) => {
 
 const removeAssignee = (memberId) => {
   if (taskData.value.assignees) {
+    const initialLength = taskData.value.assignees.length;
     taskData.value.assignees = taskData.value.assignees.filter(a => a.user_id !== memberId);
-    markAsModified();
+    
+    // Only mark as modified if an assignee was actually removed
+    if (taskData.value.assignees.length < initialLength) {
+      markAsModified();
+    }
   }
 };
 
@@ -1235,28 +1288,13 @@ const addComment = async () => {
       form.append('comment', newComment.value.trim());
       form.append('task_id', taskId);
       
-      // Debug: log file details before sending
-      console.log('Files to upload:', commentAttachments.value.map(f => ({
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        lastModified: f.lastModified
-      })));
-      
       // Append attachments[] to match ProjectDetailPage (Catatan) implementation
       commentAttachments.value.forEach((file) => {
         if (file instanceof File && file.size > 0) {
           form.append('attachments[]', file);
-          console.log('Added comment file:', file.name, file.size, 'bytes');
         } else {
           console.warn('Skipping invalid comment file:', file);
         }
-      });
-
-      console.log('Sending comment with FormData:', {
-        comment: newComment.value.trim(),
-        task_id: taskId,
-        attachments: commentAttachments.value.length
       });
 
       // Pass multipart header like the working notes flow so the server validates files correctly
@@ -1324,7 +1362,6 @@ const addFilesToTask = (files) => {
     if (f instanceof File && f.size > 0) {
       f._uid = `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
       taskAttachments.value.push(f);
-      console.log('Added task file:', f.name, f.size, 'bytes');
     } else {
       console.warn('Skipping invalid task file:', f);
     }
@@ -1359,7 +1396,6 @@ const addFilesToComment = (files) => {
     if (f instanceof File && f.size > 0) {
       f._uid = `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
       commentAttachments.value.push(f);
-      console.log('Added comment file:', f.name, f.size, 'bytes');
     } else {
       console.warn('Skipping invalid comment file:', f);
     }
@@ -1384,7 +1420,6 @@ const formatBytes = (bytes, decimals = 2) => {
 
 const editComment = (comment) => {
   // TODO: Implement edit comment functionality
-  console.log('Edit comment:', comment);
 };
 
 const deleteComment = async (commentId) => {
@@ -1442,7 +1477,6 @@ const loadRelationTypes = async () => {
     loadingRelationTypes.value = true;
     const response = await taskService.getTaskRelationTypes();
     relationTypes.value = response.data.data || response.data || [];
-    console.log('Relation types loaded:', relationTypes.value.length);
   } catch (error) {
     console.error('Error loading relation types:', error);
     errorToast('Gagal memuat tipe relasi');
@@ -1457,8 +1491,6 @@ const loadAvailableTasks = async () => {
     
     // First try to use projectTasks from props if available
     if (props.projectTasks && props.projectTasks.length > 0) {
-      console.log('Using project tasks from props:', props.projectTasks.length);
-      
       const currentTaskId = taskData.value.uuid || taskData.value.id;
       
       if (currentTaskId) {
@@ -1471,19 +1503,14 @@ const loadAvailableTasks = async () => {
         availableTasks.value = props.projectTasks;
       }
       
-      console.log('Available tasks loaded from props:', availableTasks.value.length);
       return;
     }
-    
-    // Fallback to API call if no props data
-    console.log('Loading tasks from API...');
     
     // Get project_id from taskData
     const projectId = taskData.value.project_id;
     
     // If no project_id available, skip loading for now
     if (!projectId) {
-      console.log('No project_id available, skipping available tasks loading');
       availableTasks.value = [];
       return;
     }
@@ -1506,13 +1533,11 @@ const loadAvailableTasks = async () => {
       availableTasks.value = allTasks;
     }
     
-    console.log('Available tasks loaded from API:', availableTasks.value.length);
   } catch (error) {
     console.error('Error loading available tasks:', error);
     
     // If API call fails, try without parameters as fallback
     try {
-      console.log('Retrying without project filter...');
       const response = await taskService.list();
       const allTasks = response.data.data || response.data || [];
       const currentTaskId = taskData.value.uuid || taskData.value.id;
@@ -1524,7 +1549,6 @@ const loadAvailableTasks = async () => {
       } else {
         availableTasks.value = allTasks;
       }
-      console.log('Available tasks loaded (fallback):', availableTasks.value.length);
     } catch (fallbackError) {
       console.error('Fallback also failed:', fallbackError);
       // Only show error toast if this is not during initial task creation
@@ -1580,15 +1604,13 @@ const handleTaskSearch = async (query) => {
   if (query.length >= 1) {
     // Load available tasks if not loaded yet (lazy loading)
     if (availableTasks.value.length === 0 && !loadingTasks.value) {
-      console.log('Loading available tasks on search...');
       await loadAvailableTasks();
     }
     
-    console.log('Searching tasks, available:', availableTasks.value.length);
     filteredTasks.value = availableTasks.value.filter(task => 
       task.title.toLowerCase().includes(query.toLowerCase())
     );
-    console.log('Filtered tasks:', filteredTasks.value.length);
+
     showTaskDropdown.value = filteredTasks.value.length > 0;
   } else {
     filteredTasks.value = [];
@@ -1603,7 +1625,6 @@ const handleTaskSearch = async (query) => {
 };
 
 const selectTask = (task) => {
-  console.log('Selecting task:', task);
   newRelation.value.related_task_id = task.id;
   selectedTaskTitle.value = task.title;
   taskSearchQuery.value = task.title;
@@ -1636,13 +1657,6 @@ const addTaskRelation = async () => {
     const selectedTask = availableTasks.value.find(t => t.id === newRelation.value.related_task_id);
     const selectedRelationType = relationTypes.value.find(rt => rt.id === newRelation.value.relation_type_id);
     
-    console.log('Adding relation:', {
-      selected_task_id: newRelation.value.related_task_id,
-      selected_relation_type_id: newRelation.value.relation_type_id,
-      selectedTask: selectedTask,
-      selectedRelationType: selectedRelationType
-    });
-    
     if (selectedTask && selectedRelationType) {
       const newRelationData = {
         task_id: selectedTask.id,
@@ -1652,21 +1666,25 @@ const addTaskRelation = async () => {
         relation_type_id: selectedRelationType.id
       };
 
-      console.log('New relation data:', newRelationData);
-
       // Always add to related_to (this task → related task)
+      if (!taskData.value.related_to) {
+        taskData.value.related_to = [];
+      }
       taskData.value.related_to.push(newRelationData);
-      
-      console.log('Current related_to:', taskData.value.related_to);
       
       markAsModified();
     }
 
+    // Reset and close form
     showAddRelationForm.value = false;
     newRelation.value = {
       related_task_id: null,
       relation_type_id: null
     };
+    taskSearchQuery.value = '';
+    selectedTaskTitle.value = '';
+    filteredTasks.value = [];
+    showTaskDropdown.value = false;
     
     successToast('Tugas terkait berhasil ditambahkan');
   } catch (error) {
@@ -1677,11 +1695,21 @@ const addTaskRelation = async () => {
 
 const removeTaskRelation = (relation) => {
   try {
-    const index = taskData.value.related_to.findIndex(r => r.task_uuid === relation.task_uuid);
+    if (!taskData.value.related_to) {
+      taskData.value.related_to = [];
+    }
+    
+    const index = taskData.value.related_to.findIndex(r => 
+      (r.task_uuid === relation.task_uuid) || 
+      (r.task_id === relation.task_id)
+    );
+    
     if (index > -1) {
       taskData.value.related_to.splice(index, 1);
       markAsModified();
       successToast('Tugas terkait berhasil dihapus');
+    } else {
+      console.warn('Relation not found for removal:', relation);
     }
   } catch (error) {
     console.error('Error removing task relation:', error);
