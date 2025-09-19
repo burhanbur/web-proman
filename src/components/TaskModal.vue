@@ -3,7 +3,10 @@
     <div class="task-modal" @click.stop>
       <!-- Modal Header -->
       <div class="modal-header">
-        <h2 class="modal-title">Detail Tugas</h2>
+        <h2 class="modal-title">
+          Detail Tugas
+          <small v-if="titleSuffix" class="modal-title-suffix"> — {{ titleSuffix }}</small>
+        </h2>
         <button class="btn-close" @click="closeModal">
           <font-awesome-icon icon="times" />
         </button>
@@ -742,6 +745,10 @@ const props = defineProps({
   projectTasks: {
     type: Array,
     default: () => []
+  },
+  currentProject: {
+    type: Object,
+    default: null
   }
 });
 
@@ -828,6 +835,50 @@ const availableMembers = computed(() => {
   );
   
   return returnValue;
+});
+
+// Title suffix to show workspace and project context (e.g. "Workspace / Project")
+const titleSuffix = computed(() => {
+  try {
+    // First priority: use currentProject prop (from ProjectDetailPage)
+    if (props.currentProject) {
+      const projectName = props.currentProject.name || props.currentProject.title;
+      const workspaceName = props.currentProject.workspace?.name;
+      
+      if (workspaceName && projectName) return `${workspaceName} / ${projectName}`;
+      if (projectName) return projectName;
+      if (workspaceName) return workspaceName;
+    }
+
+    // Second priority: use task data project/workspace info
+    const p = taskData.value || {};
+    let projectName = p.project?.name || p.project_name || p.project?.title || null;
+    let workspaceName = p.project?.workspace?.name || p.workspace?.name || null;
+
+    // Fallback: check props.task.project
+    if (!projectName && props.task && props.task.project) {
+      projectName = props.task.project.name || props.task.project.title || projectName;
+      if (!workspaceName && props.task.project.workspace) {
+        workspaceName = props.task.project.workspace.name;
+      }
+    }
+
+    // Fallback: try to resolve from props.projectTasks by project_id
+    if (!projectName && taskData.value.project_id && props.projectTasks && props.projectTasks.length) {
+      const match = props.projectTasks.find(pt => pt.id === taskData.value.project_id || pt.uuid === taskData.value.project_id);
+      if (match) {
+        projectName = match.name || match.title || projectName;
+        if (!workspaceName && match.workspace) workspaceName = match.workspace.name;
+      }
+    }
+
+    if (workspaceName && projectName) return `${workspaceName} / ${projectName}`;
+    if (projectName) return projectName;
+    if (workspaceName) return workspaceName;
+    return '';
+  } catch (e) {
+    return '';
+  }
 });
 
 // Methods
@@ -2146,6 +2197,14 @@ watch([
   font-weight: 600;
   color: inherit;
   margin: 0;
+}
+
+.modal-title-suffix {
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+  opacity: 0.95;
+  color: rgba(255,255,255,0.9);
 }
 
 .btn-close {

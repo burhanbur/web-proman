@@ -101,9 +101,9 @@
                   <span>{{ getPriorityName(priority.name) || priority.name }}</span>
                   <span class="task-count">{{ getTasksByPriority(priority.id).length }}</span>
                 </div>
-                <button class="btn-icon" @click="addTask(priority.id)">
+                <!-- <button class="btn-icon" @click="addTask(priority.id)">
                   <font-awesome-icon icon="plus" />
-                </button>
+                </button> -->
               </div>
               
               <div class="column-content">
@@ -177,10 +177,10 @@
                 </div>
                 
                 <!-- Add Task Button in Column -->
-                <button class="add-task-btn" @click="addTask(status.id)">
+                <!-- <button class="add-task-btn" @click="addTask(status.id)">
                   <font-awesome-icon icon="plus" />
                   Tambah Tugas
-                </button>
+                </button> -->
               </div>
             </div>
           </div>

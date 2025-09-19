@@ -1088,6 +1088,7 @@
       :task-priorities="taskPriorities"
       :project-members="project?.members || []"
       :project-tasks="allProjectTasks"
+      :current-project="project"
       @close="handleTaskModalClose"
       @task-updated="handleTaskUpdated"
       @task-deleted="handleTaskDeleted"
