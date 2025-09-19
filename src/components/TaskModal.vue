@@ -143,102 +143,129 @@
                 Relasi Tugas
               </label>
               
-              <!-- Related From (Dependencies) - Read Only -->
-              <div class="relations-container" v-if="taskData.related_from && taskData.related_from.length > 0">
-                <h6 class="relation-heading">
-                  <font-awesome-icon icon="arrow-left" />
-                  Bergantung Pada (Read-only)
-                </h6>
-                <div class="relation-list">
-                  <div 
-                    v-for="relation in taskData.related_from" 
-                    :key="relation.task_uuid"
-                    class="relation-item relation-item-readonly"
-                  >
-                    <div class="relation-info">
-                      <span class="relation-task-title">{{ relation.title }}</span>
-                      <span class="relation-type">{{ relation.relation_type }}</span>
-                    </div>
-                    <div class="readonly-indicator">
-                      <font-awesome-icon icon="eye" />
-                    </div>
-                  </div>
-                </div>
-                <p class="relation-note">
-                  <font-awesome-icon icon="exclamation-triangle" />
-                  Untuk menghapus relasi ini, edit dari tugas yang bersangkutan
-                </p>
-              </div>
-
-              <!-- Related To (Dependents) - Editable -->
-              <div class="relations-container" v-if="taskData.related_to && taskData.related_to.length > 0">
-                <h6 class="relation-heading">
-                  <font-awesome-icon icon="arrow-right" />
-                  Tugas Terkait
-                </h6>
-                <div class="relation-list">
-                  <div 
-                    v-for="relation in taskData.related_to" 
-                    :key="relation.task_uuid"
-                    class="relation-item"
-                  >
-                    <div class="relation-info">
-                      <span class="relation-task-title">{{ relation.title }}</span>
-                      <span class="relation-type">{{ relation.relation_type }}</span>
-                    </div>
-                    <button 
-                      @click="removeTaskRelation(relation)"
-                      class="btn-remove-relation"
-                      type="button"
-                      :disabled="saving"
+              <div class="relations-container">
+                <!-- Related From (Dependencies) - Read Only -->
+                <div v-if="taskData.related_from && taskData.related_from.length > 0">
+                  <h6 class="relation-heading">
+                    <font-awesome-icon icon="arrow-left" />
+                    Bergantung Pada (Read-only)
+                  </h6>
+                  <div class="relation-list">
+                    <div 
+                      v-for="relation in taskData.related_from" 
+                      :key="relation.task_uuid"
+                      class="relation-item relation-item-readonly"
                     >
-                      <font-awesome-icon icon="times" />
-                    </button>
+                      <div class="relation-info">
+                        <span class="relation-task-title">{{ relation.title }}</span>
+                        <span class="relation-type">{{ relation.relation_type }}</span>
+                      </div>
+                      <div class="readonly-indicator">
+                        <font-awesome-icon icon="eye" />
+                      </div>
+                    </div>
+                  </div>
+                  <p class="relation-note">
+                    <font-awesome-icon icon="exclamation-triangle" />
+                    Untuk menghapus relasi ini, edit dari tugas yang bersangkutan
+                  </p>
+                </div>
+
+                <!-- Related To (Dependents) - Editable -->
+                <div v-if="taskData.related_to && taskData.related_to.length > 0">
+                  <h6 class="relation-heading mt-4">
+                    <font-awesome-icon icon="arrow-right" />
+                    Tugas Terkait
+                  </h6>
+                  <div class="relation-list">
+                    <div 
+                      v-for="relation in taskData.related_to" 
+                      :key="relation.task_uuid"
+                      class="relation-item"
+                    >
+                      <div class="relation-info">
+                        <span class="relation-task-title">{{ relation.title }}</span>
+                        <span class="relation-type">{{ relation.relation_type }}</span>
+                      </div>
+                      <button 
+                        @click="removeTaskRelation(relation)"
+                        class="btn-remove-relation"
+                        type="button"
+                        :disabled="saving"
+                      >
+                        <font-awesome-icon icon="times" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Add Relation Button -->
-              <button 
-                @click="showAddRelationModal"
-                class="btn btn-outline-primary btn-sm"
-                type="button"
-                :disabled="saving || loadingTasks || loadingRelationTypes"
-              >
-                <font-awesome-icon icon="plus" />
-                Tambah Tugas Terkait
-              </button>
+                <!-- Empty state for relations -->
+                <div v-if="(!taskData.related_from || taskData.related_from.length === 0) && (!taskData.related_to || taskData.related_to.length === 0)" class="relations-empty-state">
+                  <div class="empty-relations-content">
+                    <font-awesome-icon icon="link" size="2x" class="empty-relations-icon" />
+                    <p class="empty-relations-text">Belum ada relasi tugas</p>
+                    <p class="empty-relations-subtext">Tambahkan tugas terkait untuk menunjukkan ketergantungan</p>
+                  </div>
+                </div>
+
+                <!-- Add Relation Button -->
+                <div class="relation-actions">
+                  <button 
+                    @click="showAddRelationModal"
+                    class="btn btn-outline-primary btn-sm"
+                    type="button"
+                    :disabled="saving"
+                  >
+                    <font-awesome-icon icon="plus" />
+                    Tambah Tugas Terkait
+                  </button>
+                </div>
+              </div>
             </div>
             
             <!-- Attachments for Task (drag & drop) -->
             <div class="form-group">
-              <label class="form-label">Lampiran Tugas</label>
-              <div
-                class="file-drop-area"
-                :class="{ 'is-dragover': taskDropActive }"
-                @dragover.prevent="onTaskDragOver"
-                @dragenter.prevent="onTaskDragEnter"
-                @dragleave.prevent="onTaskDragLeave"
-                @drop.prevent="onTaskDrop"
-                @click="triggerTaskFileInput"
-                role="button"
-                tabindex="0"
-              >
-                <input ref="taskFileInput" type="file" multiple class="sr-only" @change="onTaskFilesSelected" />
-                <div class="file-drop-content">
-                  <font-awesome-icon icon="paperclip" />
-                  <span v-if="taskAttachments.length === 0">Tarik dan lepas file di sini, atau klik untuk memilih (multi)</span>
-                  <span v-else>{{ taskAttachments.length }} file dipilih</span>
-                </div>
-              </div>
-
-              <div v-if="taskAttachments.length" class="file-previews">
-                <div v-for="(f, idx) in taskAttachments" :key="f._uid" class="file-preview">
-                  <div class="file-meta">
-                    <div class="file-name">{{ f.name }}</div>
-                    <div class="file-size">{{ formatBytes(f.size) }}</div>
+              <label class="form-label">
+                <font-awesome-icon icon="paperclip" />
+                Lampiran Tugas
+              </label>
+              <div class="attachments-container">
+                <div
+                  class="file-drop-area"
+                  :class="{ 'is-dragover': taskDropActive }"
+                  @dragover.prevent="onTaskDragOver"
+                  @dragenter.prevent="onTaskDragEnter"
+                  @dragleave.prevent="onTaskDragLeave"
+                  @drop.prevent="onTaskDrop"
+                  @click="triggerTaskFileInput"
+                  role="button"
+                  tabindex="0"
+                >
+                  <input ref="taskFileInput" type="file" multiple class="sr-only" @change="onTaskFilesSelected" />
+                  <div class="file-drop-content">
+                    <font-awesome-icon icon="cloud-upload-alt" size="lg" />
+                    <div class="file-drop-text">
+                      <span v-if="taskAttachments.length === 0" class="file-drop-primary">Tarik dan lepas file di sini, atau klik untuk memilih</span>
+                      <span v-else class="file-drop-primary">{{ taskAttachments.length }} file dipilih</span>
+                      <span class="file-drop-secondary">Mendukung multiple file</span>
+                    </div>
                   </div>
-                  <button type="button" class="btn btn-outline btn-sm" @click="removeTaskAttachment(idx)">Hapus</button>
+                </div>
+
+                <div v-if="taskAttachments.length" class="file-previews">
+                  <div v-for="(f, idx) in taskAttachments" :key="f._uid" class="file-preview">
+                    <div class="file-meta">
+                      <font-awesome-icon :icon="getFileIcon(f.type)" class="file-icon" />
+                      <div class="file-details">
+                        <div class="file-name">{{ f.name }}</div>
+                        <div class="file-size">{{ formatBytes(f.size) }}</div>
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" @click="removeTaskAttachment(idx)">
+                      <font-awesome-icon icon="trash" />
+                      Hapus
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -498,6 +525,12 @@
       </div>
       
       <div class="relation-modal-content">
+        <!-- Loading indicator for initial data loading -->
+        <div v-if="(loadingTasks && availableTasks.length === 0) || (loadingRelationTypes && relationTypes.length === 0)" class="relation-initial-loading">
+          <font-awesome-icon icon="spinner" spin />
+          <span>Memuat data relasi...</span>
+        </div>
+        
         <div class="relation-form-group">
           <label class="relation-form-label">
             <font-awesome-icon icon="tasks" />
@@ -507,11 +540,11 @@
             <input 
               v-model="taskSearchQuery"
               @input="handleTaskSearch($event.target.value)"
-              @focus="taskSearchQuery.length >= 3 && (showTaskDropdown = true)"
+              @focus="taskSearchQuery.length >= 1 && (showTaskDropdown = true)"
               @blur="handleTaskInputBlur"
               type="text"
               class="autocomplete-input"
-              placeholder="Ketik minimal 3 karakter untuk mencari tugas..."
+              placeholder="Ketik minimal 1 karakter untuk mencari tugas..."
               :disabled="loadingTasks"
             />
             <div v-if="selectedTaskTitle" class="selected-task-indicator">
@@ -531,7 +564,8 @@
               <div 
                 v-for="task in filteredTasks.slice(0, 10)" 
                 :key="task.id"
-                @click="selectTask(task)"
+                @mousedown.prevent="selectTask(task)"
+                @click.prevent
                 class="autocomplete-item"
               >
                 <div class="autocomplete-item-content">
@@ -631,6 +665,10 @@ const props = defineProps({
   projectMembers: {
     type: Array,
     default: () => []
+  },
+  projectTasks: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -709,7 +747,50 @@ const initializeTaskData = async () => {
   // Initialize when we have either numeric id or uuid (some contexts only provide uuid)
   const id = props.task?.uuid || props.task?.id;
 
+  // Always reset comments and attachments state first
+  comments.value = [];
+  newComment.value = '';
+  taskAttachments.value = [];
+  commentAttachments.value = [];
+
+  // For new tasks (no id/uuid), just use props data directly
   if (!props.task || (!props.task.id && !props.task.uuid)) {
+    // This is a new task, initialize from props directly
+    const p = props.task || {};
+    taskData.value = {
+      id: p.id || null,
+      uuid: p.uuid || null,
+      title: p.title || '',
+      description: p.description || '',
+      status_id: p.status_id || null,
+      priority_id: p.priority_id || null,
+      due_date: p.due_date || null,
+      point: p.point != null ? p.point : null,
+      project_id: p.project_id || null, // ✅ Include project_id for new tasks
+      assignees: (p.assignees || p.assigned_to || []).map(a => ({ 
+        user_id: a.user_id || a.id, 
+        name: a.name || a.full_name || null, 
+        avatar: a.avatar || null 
+      })),
+      attachments: p.attachments || [],
+      related_from: p.related_from || [],
+      related_to: p.related_to || []
+    };
+    originalTaskData.value = { 
+      ...taskData.value, 
+      assignees: [...(taskData.value.assignees || [])],
+      related_from: [...(taskData.value.related_from || [])],
+      related_to: [...(taskData.value.related_to || [])]
+    };
+    isModified.value = false;
+    lastOpenTaskId.value = null;
+
+    console.log('Initialized new task data:', taskData.value);
+    
+    // Load relation types and available tasks for new task
+    loadRelationTypes();
+    loadAvailableTasks();
+    
     return;
   }
 
@@ -726,8 +807,9 @@ const initializeTaskData = async () => {
       description: freshTaskData.description || '',
       status_id: freshTaskData.status_id || freshTaskData.status?.status_id || freshTaskData.status?.id || null,
       priority_id: freshTaskData.priority_id || freshTaskData.priority?.priority_id || freshTaskData.priority?.id || null,
-  due_date: freshTaskData.due_date || freshTaskData.dueDate || null,
-  point: freshTaskData.point != null ? freshTaskData.point : (freshTaskData.points || freshTaskData.point_value || null),
+      due_date: freshTaskData.due_date || freshTaskData.dueDate || null,
+      point: freshTaskData.point != null ? freshTaskData.point : (freshTaskData.points || freshTaskData.point_value || null),
+      project_id: freshTaskData.project_id || null, // ✅ Include project_id
       assignees: (freshTaskData.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null })),
       attachments: freshTaskData.attachments || [],
       related_from: freshTaskData.related_from || [],
@@ -741,10 +823,6 @@ const initializeTaskData = async () => {
     };
     isModified.value = false;
     lastOpenTaskId.value = id || null;
-
-  // Reset attachments state for fresh task
-  taskAttachments.value = [];
-  commentAttachments.value = [];
 
   // Load comments when task is set
   loadComments();
@@ -765,6 +843,7 @@ const initializeTaskData = async () => {
       priority_id: p.priority_id || p.priority?.priority_id || p.priority?.id || null,
       due_date: p.due_date || p.dueDate || null,
       point: p.point != null ? p.point : (p.points || p.point_value || null),
+      project_id: p.project_id || null, // ✅ Include project_id
       assignees: (p.assignees || []).map(a => ({ user_id: a.user_id || a.id, name: a.name || a.full_name || null, avatar: a.avatar || null })),
       attachments: p.attachments || [],
       related_from: p.related_from || [],
@@ -781,12 +860,14 @@ const initializeTaskData = async () => {
 
     console.log('Fallback to props task data:', taskData.value);
     
-  // Reset attachments state for fresh task
-  taskAttachments.value = [];
-  commentAttachments.value = [];
-
-  // Load comments when task is set
-  loadComments();
+  // Reset or load comments depending on task type
+  if (!id) {
+    // New task - comments already reset at the beginning
+    console.log('New task - comments already reset');
+  } else {
+    // Existing task - load comments
+    loadComments();
+  }
   }
 };
 
@@ -873,21 +954,41 @@ const dueDateModel = computed({
 const closeModal = () => {
   if (isModified.value) {
     if (confirm('Anda memiliki perubahan yang belum disimpan. Yakin ingin menutup?')) {
+      resetModalState();
       emit('close');
     }
   } else {
+    resetModalState();
     emit('close');
   }
+};
+
+const resetModalState = () => {
+  // Reset all modal state when closing
+  comments.value = [];
+  newComment.value = '';
+  taskAttachments.value = [];
+  commentAttachments.value = [];
+  isModified.value = false;
+  showAssigneeSelector.value = false;
+  showAddRelationForm.value = false;
+  taskSearchQuery.value = '';
+  selectedTaskTitle.value = '';
+  filteredTasks.value = [];
+  showTaskDropdown.value = false;
 };
 
 const saveTask = async () => {
   try {
     saving.value = true;
     const hasFiles = taskAttachments.value && taskAttachments.value.length > 0;
+    const isNewTask = !taskData.value.id && !taskData.value.uuid;
 
     // Debug: log current task data
     console.log('Saving task:', {
       uuid: taskData.value.uuid,
+      id: taskData.value.id,
+      isNewTask,
       hasFiles,
       assignees: taskData.value.assignees,
       related_to: taskData.value.related_to,
@@ -904,6 +1005,17 @@ const saveTask = async () => {
       if (taskData.value.priority_id) form.append('priority_id', taskData.value.priority_id);
       if (taskData.value.due_date) form.append('due_date', taskData.value.due_date);
       if (taskData.value.point !== null && taskData.value.point !== undefined) form.append('point', taskData.value.point);
+      
+      // Add project_id for new tasks
+      if (isNewTask) {
+        const projectId = taskData.value.project_id;
+        console.log('Adding project_id to FormData:', projectId);
+        if (projectId) {
+          form.append('project_id', projectId);
+        } else {
+          console.warn('project_id is missing for new task:', taskData.value);
+        }
+      }
 
       // Use the same attachments[] array format as the working Notes implementation
       taskAttachments.value.forEach((file) => {
@@ -936,13 +1048,19 @@ const saveTask = async () => {
         });
       }
 
-      // Laravel expects PUT for update routes when using multipart/form-data
-      form.append('_method', 'PUT');
-      
-      console.log('Sending FormData with assignees and relations');
-      console.log('Related tasks count (related_to only):', relatedTasks.length);
-      // Forward multipart header so server recognizes file parts (match note flow)
-      response = await taskService.updateForm(taskData.value.uuid, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (isNewTask) {
+        // For new task with files, use create endpoint
+        console.log('Creating new task with FormData');
+        response = await taskService.create(form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      } else {
+        // Laravel expects PUT for update routes when using multipart/form-data
+        form.append('_method', 'PUT');
+        
+        console.log('Updating existing task with FormData');
+        console.log('Related tasks count (related_to only):', relatedTasks.length);
+        // Forward multipart header so server recognizes file parts (match note flow)
+        response = await taskService.updateForm(taskData.value.uuid, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      }
     } else {
       // Only send related_to (Tugas Terkait) - related_from is read-only
       const relatedTasks = (taskData.value.related_to || []).map(relation => ({
@@ -961,9 +1079,42 @@ const saveTask = async () => {
         related_tasks: relatedTasks
       };
 
-      console.log('Sending JSON payload with assignees and relations:', payload);
-      console.log('Related tasks count (related_to only):', relatedTasks.length);
-      response = await taskService.update(taskData.value.uuid, payload);
+      // Add project_id for new tasks
+      if (isNewTask) {
+        const projectId = taskData.value.project_id;
+        console.log('Adding project_id to JSON payload:', projectId);
+        if (projectId) {
+          payload.project_id = projectId;
+        } else {
+          console.warn('project_id is missing for new task:', taskData.value);
+        }
+      }
+
+      if (isNewTask) {
+        console.log('Creating new task with JSON payload:', payload);
+        response = await taskService.create(payload);
+      } else {
+        console.log('Updating existing task with JSON payload:', payload);
+        console.log('Related tasks count (related_to only):', relatedTasks.length);
+        response = await taskService.update(taskData.value.uuid, payload);
+      }
+    }
+    
+    // For new tasks, update taskData with the created task data
+    if (isNewTask && response.data) {
+      taskData.value = {
+        ...taskData.value,
+        ...response.data,
+        assignees: response.data.assignees || [],
+        related_from: response.data.related_from || [],
+        related_to: response.data.related_to || []
+      };
+      
+      // Refresh all data for new task to get complete information
+      await refreshTaskData();
+      
+      // Refresh available tasks so the new task appears in related tasks dropdown
+      await loadAvailableTasks();
     }
     
     originalTaskData.value = { 
@@ -974,11 +1125,14 @@ const saveTask = async () => {
     };
     isModified.value = false;
     
-    successToast('Tugas berhasil diperbarui');
+    const successMessage = isNewTask ? 'Tugas berhasil dibuat' : 'Tugas berhasil diperbarui';
+    successToast(successMessage);
     emit('task-updated', response.data);
     
-    // Refresh task data to get updated attachments from server
-    await refreshTaskData();
+    // Refresh task data to get updated attachments from server (for existing tasks)
+    if (!isNewTask) {
+      await refreshTaskData();
+    }
     
     // clear attachments on success
     taskAttachments.value = [];
@@ -1288,6 +1442,7 @@ const loadRelationTypes = async () => {
     loadingRelationTypes.value = true;
     const response = await taskService.getTaskRelationTypes();
     relationTypes.value = response.data.data || response.data || [];
+    console.log('Relation types loaded:', relationTypes.value.length);
   } catch (error) {
     console.error('Error loading relation types:', error);
     errorToast('Gagal memuat tipe relasi');
@@ -1299,19 +1454,93 @@ const loadRelationTypes = async () => {
 const loadAvailableTasks = async () => {
   try {
     loadingTasks.value = true;
-    const response = await taskService.list();
-    // Filter out current task from available tasks
+    
+    // First try to use projectTasks from props if available
+    if (props.projectTasks && props.projectTasks.length > 0) {
+      console.log('Using project tasks from props:', props.projectTasks.length);
+      
+      const currentTaskId = taskData.value.uuid || taskData.value.id;
+      
+      if (currentTaskId) {
+        // For existing tasks, filter out the current task
+        availableTasks.value = props.projectTasks.filter(task => 
+          task.uuid !== currentTaskId && task.id !== currentTaskId
+        );
+      } else {
+        // For new tasks, show all tasks
+        availableTasks.value = props.projectTasks;
+      }
+      
+      console.log('Available tasks loaded from props:', availableTasks.value.length);
+      return;
+    }
+    
+    // Fallback to API call if no props data
+    console.log('Loading tasks from API...');
+    
+    // Get project_id from taskData
+    const projectId = taskData.value.project_id;
+    
+    // If no project_id available, skip loading for now
+    if (!projectId) {
+      console.log('No project_id available, skipping available tasks loading');
+      availableTasks.value = [];
+      return;
+    }
+    
+    // Try to load tasks with project filter
+    const params = { project_id: projectId };
+    const response = await taskService.list(params);
+    
+    // Filter out current task from available tasks (only if current task has uuid/id)
     const allTasks = response.data.data || response.data || [];
-    availableTasks.value = allTasks.filter(task => task.uuid !== taskData.value.uuid);
+    const currentTaskId = taskData.value.uuid || taskData.value.id;
+    
+    if (currentTaskId) {
+      // For existing tasks, filter out the current task
+      availableTasks.value = allTasks.filter(task => 
+        task.uuid !== currentTaskId && task.id !== currentTaskId
+      );
+    } else {
+      // For new tasks, show all tasks
+      availableTasks.value = allTasks;
+    }
+    
+    console.log('Available tasks loaded from API:', availableTasks.value.length);
   } catch (error) {
     console.error('Error loading available tasks:', error);
-    errorToast('Gagal memuat daftar tugas');
+    
+    // If API call fails, try without parameters as fallback
+    try {
+      console.log('Retrying without project filter...');
+      const response = await taskService.list();
+      const allTasks = response.data.data || response.data || [];
+      const currentTaskId = taskData.value.uuid || taskData.value.id;
+      
+      if (currentTaskId) {
+        availableTasks.value = allTasks.filter(task => 
+          task.uuid !== currentTaskId && task.id !== currentTaskId
+        );
+      } else {
+        availableTasks.value = allTasks;
+      }
+      console.log('Available tasks loaded (fallback):', availableTasks.value.length);
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError);
+      // Only show error toast if this is not during initial task creation
+      const isNewTask = !taskData.value.id && !taskData.value.uuid;
+      if (!isNewTask) {
+        errorToast('Gagal memuat daftar tugas');
+      }
+      // Set empty array to prevent further issues
+      availableTasks.value = [];
+    }
   } finally {
     loadingTasks.value = false;
   }
 };
 
-const showAddRelationModal = () => {
+const showAddRelationModal = async () => {
   newRelation.value = {
     related_task_id: null,
     relation_type_id: null
@@ -1320,6 +1549,15 @@ const showAddRelationModal = () => {
   selectedTaskTitle.value = '';
   filteredTasks.value = [];
   showTaskDropdown.value = false;
+  
+  // Ensure data is loaded before showing the modal
+  if (availableTasks.value.length === 0 && !loadingTasks.value) {
+    await loadAvailableTasks();
+  }
+  if (relationTypes.value.length === 0 && !loadingRelationTypes.value) {
+    await loadRelationTypes();
+  }
+  
   showAddRelationForm.value = true;
 };
 
@@ -1336,13 +1574,21 @@ const cancelAddRelation = () => {
 };
 
 // Autocomplete search methods
-const handleTaskSearch = (query) => {
+const handleTaskSearch = async (query) => {
   taskSearchQuery.value = query;
   
-  if (query.length >= 3) {
+  if (query.length >= 1) {
+    // Load available tasks if not loaded yet (lazy loading)
+    if (availableTasks.value.length === 0 && !loadingTasks.value) {
+      console.log('Loading available tasks on search...');
+      await loadAvailableTasks();
+    }
+    
+    console.log('Searching tasks, available:', availableTasks.value.length);
     filteredTasks.value = availableTasks.value.filter(task => 
       task.title.toLowerCase().includes(query.toLowerCase())
     );
+    console.log('Filtered tasks:', filteredTasks.value.length);
     showTaskDropdown.value = filteredTasks.value.length > 0;
   } else {
     filteredTasks.value = [];
@@ -1357,6 +1603,7 @@ const handleTaskSearch = (query) => {
 };
 
 const selectTask = (task) => {
+  console.log('Selecting task:', task);
   newRelation.value.related_task_id = task.id;
   selectedTaskTitle.value = task.title;
   taskSearchQuery.value = task.title;
@@ -1367,7 +1614,7 @@ const handleTaskInputBlur = () => {
   // Delay hiding dropdown to allow click events on dropdown items
   setTimeout(() => {
     showTaskDropdown.value = false;
-  }, 150);
+  }, 250); // Increased from 150ms to 250ms
 };
 
 const clearTaskSelection = () => {
@@ -1878,47 +2125,101 @@ watch([
 .file-drop-area {
   border: 2px dashed #d1d5db;
   border-radius: 8px;
-  padding: 0.75rem;
+  padding: 1.5rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
   cursor: pointer;
   user-select: none;
+  transition: all 0.2s ease;
+  background: #fafafa;
 }
-.file-drop-area .file-drop-content {
+
+.attachments-container {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f9fafb;
+}
+
+.file-drop-content {
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
   align-items: center;
+  gap: 0.75rem;
   color: #6b7280;
+  text-align: center;
 }
+
+.file-drop-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.file-drop-primary {
+  font-weight: 500;
+  color: #374151;
+}
+
+.file-drop-secondary {
+  font-size: 0.875rem;
+  color: #9ca3af;
+}
+
 .file-drop-area.is-dragover {
   background: #eef2ff;
   border-color: #3b82f6;
+  color: #3b82f6;
 }
+
+.file-drop-area:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
 .file-previews {
-  margin-top: 0.5rem;
+  margin-top: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
 }
+
 .file-preview {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem;
+  padding: 0.75rem;
+  background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
-  background: white;
 }
+
 .file-meta {
   display: flex;
-  gap: 0.75rem;
   align-items: center;
+  gap: 0.75rem;
+  flex: 1;
 }
+
+.file-icon {
+  color: #6b7280;
+}
+
+.file-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .file-name {
-  font-size: 0.875rem;
+  font-weight: 500;
   color: #111827;
+  font-size: 0.875rem;
 }
+
 .file-size {
   font-size: 0.75rem;
   color: #6b7280;
@@ -2327,6 +2628,10 @@ html.dark .form-label {
   color: #d1d5db;
 }
 
+html.dark .form-label svg {
+  color: #9ca3af;
+}
+
 html.dark .form-input,
 html.dark .form-textarea,
 html.dark .form-select {
@@ -2397,6 +2702,57 @@ html.dark .existing-attachments {
   border-color: #374151;
 }
 
+html.dark .attachments-container {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .file-drop-area {
+  background: #111827;
+  border-color: #4b5563;
+  color: #9ca3af;
+}
+
+html.dark .file-drop-area:hover {
+  background: #1f2937;
+  border-color: #6b7280;
+}
+
+html.dark .file-drop-area.is-dragover {
+  background: #1e3a8a;
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
+html.dark .file-drop-primary {
+  color: #d1d5db;
+}
+
+html.dark .file-drop-secondary {
+  color: #9ca3af;
+}
+
+html.dark .file-previews {
+  border-color: #374151;
+}
+
+html.dark .file-preview {
+  background: #111827;
+  border-color: #374151;
+}
+
+html.dark .file-name {
+  color: #f3f4f6;
+}
+
+html.dark .file-size {
+  color: #9ca3af;
+}
+
+html.dark .file-icon {
+  color: #9ca3af;
+}
+
 html.dark .attachment-item {
   background: #1f2937;
   border-color: #374151;
@@ -2438,6 +2794,10 @@ html.dark .attachment-actions .btn-delete:hover {
 /* Task Relations Styles */
 .relations-container {
   margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f9fafb;
 }
 
 .relation-heading {
@@ -2462,7 +2822,7 @@ html.dark .attachment-actions .btn-delete:hover {
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
-  background: #f9fafb;
+  background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   transition: all 0.2s ease;
@@ -2500,6 +2860,41 @@ html.dark .attachment-actions .btn-delete:hover {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.relations-empty-state {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.empty-relations-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.empty-relations-icon {
+  color: #9ca3af;
+}
+
+.empty-relations-text {
+  font-weight: 500;
+  color: #6b7280;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.empty-relations-subtext {
+  color: #9ca3af;
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.relation-actions {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+  margin-top: 1rem;
 }
 
 .relation-info {
@@ -2804,6 +3199,19 @@ html.dark .attachment-actions .btn-delete:hover {
   margin-top: 0.5rem;
 }
 
+.relation-initial-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background-color: #f8fafc;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
 .relation-form-actions {
   display: flex;
   gap: 0.75rem;
@@ -2869,6 +3277,31 @@ html.dark .relation-heading {
   color: #f9fafb;
 }
 
+html.dark .relations-container {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .relations-empty-state {
+  background: #1f2937;
+}
+
+html.dark .empty-relations-content {
+  color: #9ca3af;
+}
+
+html.dark .empty-relations-text {
+  color: #d1d5db;
+}
+
+html.dark .empty-relations-subtext {
+  color: #9ca3af;
+}
+
+html.dark .empty-relations-icon {
+  color: #6b7280;
+}
+
 html.dark .relation-item {
   background: #1f2937;
   border-color: #374151;
@@ -2905,6 +3338,11 @@ html.dark .btn-outline-primary {
 html.dark .btn-outline-primary:hover {
   background: #60a5fa;
   color: #111827;
+}
+
+html.dark .relation-actions {
+  background: #1f2937;
+  border-color: #374151;
 }
 
 html.dark .loading-text {
@@ -2995,6 +3433,11 @@ html.dark .autocomplete-empty {
 }
 
 html.dark .relation-loading {
+  color: #9ca3af;
+}
+
+html.dark .relation-initial-loading {
+  background-color: #1f2937;
   color: #9ca3af;
 }
 

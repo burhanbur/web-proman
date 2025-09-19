@@ -101,6 +101,7 @@ import {
   faFileText,
   faImage,
   faComments,
+  faCloudUploadAlt,
   faExternalLinkAlt
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -207,5 +208,6 @@ library.add(
   faFileText,
   faImage,
   faComments,
+  faCloudUploadAlt,
   faEllipsisH
 );

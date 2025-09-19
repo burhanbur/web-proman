@@ -4,7 +4,7 @@ export const taskService = {
     // Basic CRUD operations
     list: (params) => api.get('/tasks', { params }),
     get: (uuid) => api.get(`/tasks/${uuid}`),
-    create: (payload) => api.post('/tasks', payload),
+    create: (payload, config = {}) => api.post('/tasks', payload, config),
     update: (uuid, payload) => api.put(`/tasks/${uuid}`, payload),
     remove: (uuid) => api.delete(`/tasks/${uuid}`),
 

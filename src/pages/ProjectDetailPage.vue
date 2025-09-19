@@ -142,7 +142,7 @@
                 <div class="status-indicator" :style="{ backgroundColor: status.color }"></div>
                 <h3 class="column-title">{{ status.name }}</h3>
                 <span class="column-count">{{ getTasksByStatus(status.id).length }}</span>
-                <button class="btn-icon" @click="showCreateTaskModal = true">
+                <button class="btn-icon" @click="openCreateTaskModal(status.id)">
                   <font-awesome-icon icon="plus" size="sm" />
                 </button>
               </div>
@@ -247,7 +247,7 @@
               </select>
             </div>
             <div class="list-actions">
-              <button class="btn btn-primary" @click="showCreateTaskModal = true">
+              <button class="btn btn-primary" @click="openCreateTaskModal()">
                 <font-awesome-icon icon="plus" size="sm" />
                 Tugas Baru
               </button>
@@ -1087,6 +1087,7 @@
       :task-statuses="taskStatuses"
       :task-priorities="taskPriorities"
       :project-members="project?.members || []"
+      :project-tasks="allProjectTasks"
       @close="handleTaskModalClose"
       @task-updated="handleTaskUpdated"
       @task-deleted="handleTaskDeleted"
@@ -1122,7 +1123,6 @@ const loadingAttachments = ref(false);
 const taskStatuses = ref([]);
 const activeView = ref('board');
 const showInviteModal = ref(false);
-const showCreateTaskModal = ref(false);
 const notes = ref([]);
 const newNoteContent = ref('');
 const creatingNote = ref(false);
@@ -1370,6 +1370,11 @@ const filteredTasks = computed(() => {
   }
   
   return filtered;
+});
+
+// All project tasks for TaskModal
+const allProjectTasks = computed(() => {
+  return tasks.value || [];
 });
 
 // Filtered attachments for Files view
@@ -1681,6 +1686,26 @@ const openTaskDetail = (task) => {
   showTaskModal.value = true;
 };
 
+const openCreateTaskModal = (statusId = null) => {
+  // Create a new empty task with the specified status
+  selectedTask.value = {
+    id: null,
+    uuid: null,
+    title: '',
+    description: '',
+    status_id: statusId,
+    priority_id: null,
+    due_date: null,
+    assigned_to: [],
+    created_by: authStore.user?.id,
+    project_id: project.value?.id,
+    attachments: [],
+    comments: [],
+    related_to: []
+  };
+  showTaskModal.value = true;
+};
+
 const handleTaskClick = (task, event) => {
   // Only open task detail if not dragging
   if (!isDragging.value && !touchStarted.value) {
@@ -1945,7 +1970,15 @@ const updateTaskStatus = async (task, newStatusId) => {
     // Call API to update status
     await taskService.updateTaskStatus(task.uuid || task.id, { status_id: newStatusId });
     
-  successToast('Status proyek berhasil diperbarui');
+    successToast('Status proyek berhasil diperbarui');
+    
+    // Refresh project data to get updated stats
+    await refreshProject();
+    
+    // If we're on activities view, refresh activities too
+    if (activeView.value === 'activities') {
+      await loadActivities();
+    }
     
   } catch (error) {
     // Revert optimistic update on error
@@ -2853,23 +2886,45 @@ const handleTaskModalClose = () => {
   selectedTask.value = null;
 };
 
-const handleTaskUpdated = (updatedTask) => {
-  // Find and update the task in the tasks array
+const handleTaskUpdated = async (updatedTask) => {
+  // Check if this is a new task (no existing ID) or an update
   const taskIndex = tasks.value.findIndex(t => t.id === updatedTask.id);
   if (taskIndex !== -1) {
+    // Update existing task
     tasks.value[taskIndex] = updatedTask;
+  } else if (updatedTask.id) {
+    // This is a new task that was just created
+    tasks.value.push(updatedTask);
   }
   
   // Refresh project data to get updated stats
-  refreshProject();
+  await refreshProject();
+  
+  // Reload tasks to ensure data consistency
+  const projectSlug = route.params.projectSlug;
+  await loadTasks(projectSlug);
+  
+  // If we're on activities view, refresh activities too
+  if (activeView.value === 'activities') {
+    await loadActivities();
+  }
 };
 
-const handleTaskDeleted = (taskId) => {
+const handleTaskDeleted = async (taskId) => {
   // Remove task from tasks array
   tasks.value = tasks.value.filter(t => t.id !== taskId);
   
   // Refresh project data to get updated stats
-  refreshProject();
+  await refreshProject();
+  
+  // Reload tasks to ensure data consistency
+  const projectSlug = route.params.projectSlug;
+  await loadTasks(projectSlug);
+  
+  // If we're on activities view, refresh activities too
+  if (activeView.value === 'activities') {
+    await loadActivities();
+  }
   
   // Close modal
   handleTaskModalClose();
