@@ -176,7 +176,7 @@
                     </div>
                   </div>
                   <p v-if="task.description" class="task-description">
-                    {{ task.description.substring(0, 100) }}{{ task.description.length > 100 ? '...' : '' }}
+                    {{ truncateText(task.description, 100) }}
                   </p>
                   <div class="task-meta">
                     <div class="task-assignees">
@@ -1444,6 +1444,22 @@ const getTasksByStatus = (statusId) => {
 
 const getMemberInitials = (name) => {
   return name?.split(' ').map(word => word[0]).join('').slice(0, 2).toUpperCase() || 'U';
+};
+
+// Strip HTML tags from description for card preview
+const stripHtml = (html) => {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+};
+
+// Truncate text to a specific length
+const truncateText = (text, maxLength = 100) => {
+  if (!text) return '';
+  const stripped = stripHtml(text);
+  if (stripped.length <= maxLength) return stripped;
+  return stripped.substring(0, maxLength) + '...';
 };
 
 const getPriorityIcon = (priority) => {

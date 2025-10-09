@@ -126,7 +126,7 @@
                   </div>
                   
                   <h4 class="task-title">{{ task.title }}</h4>
-                  <p v-if="task.description" class="task-description">{{ task.description }}</p>
+                  <p v-if="task.description" class="task-description">{{ truncateText(task.description, 80) }}</p>
                   
                   <div class="task-meta">
                     <div class="task-project">
@@ -261,7 +261,7 @@
                     <div class="task-row-name">
                       <div class="task-info">
                         <div class="task-title">{{ task.title }}</div>
-                        <div v-if="task.description" class="task-description">{{ task.description }}</div>
+                        <div v-if="task.description" class="task-description">{{ truncateText(task.description, 100) }}</div>
                       </div>
                     </div>
                   </td>
@@ -1444,6 +1444,22 @@ const slugify = (value) => {
     .replace(/[^a-z0-9\-]/g, '') // remove invalid chars
     .replace(/\-+/g, '-')        // collapse dashes
     .replace(/^-+|-+$/g, '');     // trim dashes
+};
+
+// Strip HTML tags from description for card preview
+const stripHtml = (html) => {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+};
+
+// Truncate text to a specific length
+const truncateText = (text, maxLength = 100) => {
+  if (!text) return '';
+  const stripped = stripHtml(text);
+  if (stripped.length <= maxLength) return stripped;
+  return stripped.substring(0, maxLength) + '...';
 };
 
 // Compute dynamic class based on number of taskPriorities to allow grid-like columns (e.g. 4 statuses -> columns-4)

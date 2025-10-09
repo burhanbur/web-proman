@@ -102,7 +102,19 @@ import {
   faImage,
   faComments,
   faCloudUploadAlt,
-  faExternalLinkAlt
+  faExternalLinkAlt,
+  faBold,
+  faItalic,
+  faUnderline,
+  faStrikethrough,
+  faListUl,
+  faListOl,
+  faQuoteRight,
+  faCode,
+  faAlignLeft,
+  faAlignCenter,
+  faAlignRight,
+  faRedo
 } from '@fortawesome/free-solid-svg-icons';
 
 // Add icons to the library
@@ -209,5 +221,17 @@ library.add(
   faImage,
   faComments,
   faCloudUploadAlt,
-  faEllipsisH
+  faEllipsisH,
+  faBold,
+  faItalic,
+  faUnderline,
+  faStrikethrough,
+  faListUl,
+  faListOl,
+  faQuoteRight,
+  faCode,
+  faAlignLeft,
+  faAlignCenter,
+  faAlignRight,
+  faRedo
 );

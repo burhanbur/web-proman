@@ -32,13 +32,11 @@
             <!-- Task Description -->
             <div class="form-group">
               <label class="form-label">Deskripsi</label>
-              <textarea 
+              <TipTapEditor 
                 v-model="taskData.description" 
-                class="form-textarea"
-                @input="markAsModified"
-                rows="6"
+                @update:modelValue="markAsModified"
                 placeholder="Masukkan deskripsi tugas..."
-              ></textarea>
+              />
             </div>
 
             <!-- Task Meta Information Row 1 -->
@@ -457,7 +455,7 @@
                     
                     <!-- View mode -->
                     <div v-else>
-                      <p>{{ comment.comment }}</p>
+                      <div class="comment-text" v-html="comment.comment"></div>
                     </div>
                     
                     <!-- Comment Attachments Display -->
@@ -719,6 +717,7 @@ import { commentService } from '@/api/services/commentService';
 import { attachmentService } from '@/api/services/attachmentService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
+import TipTapEditor from './TipTapEditor.vue';
 
 // Props
 const props = defineProps({
@@ -2859,6 +2858,103 @@ watch([
   color: #374151;
   line-height: 1.5;
   word-wrap: break-word;
+}
+
+.comment-text {
+  font-size: 0.875rem;
+  color: #374151;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+/* Styling for rendered HTML in comments */
+.comment-text :deep(p) {
+  margin: 0 0 0.5rem 0;
+}
+
+.comment-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.comment-text :deep(h1),
+.comment-text :deep(h2),
+.comment-text :deep(h3) {
+  margin: 0.5rem 0 0.25rem 0;
+  font-weight: 600;
+}
+
+.comment-text :deep(h1) {
+  font-size: 1.25rem;
+}
+
+.comment-text :deep(h2) {
+  font-size: 1.125rem;
+}
+
+.comment-text :deep(h3) {
+  font-size: 1rem;
+}
+
+.comment-text :deep(ul),
+.comment-text :deep(ol) {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.comment-text :deep(li) {
+  margin: 0.25rem 0;
+}
+
+.comment-text :deep(blockquote) {
+  border-left: 3px solid #e5e7eb;
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.comment-text :deep(code) {
+  background: #f3f4f6;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85em;
+}
+
+.comment-text :deep(pre) {
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.comment-text :deep(pre code) {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.comment-text :deep(a) {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.comment-text :deep(strong) {
+  font-weight: 600;
+}
+
+.comment-text :deep(em) {
+  font-style: italic;
+}
+
+.comment-text :deep(u) {
+  text-decoration: underline;
+}
+
+.comment-text :deep(s) {
+  text-decoration: line-through;
 }
 
 /* Comment Edit Form Styles */
