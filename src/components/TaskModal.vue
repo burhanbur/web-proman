@@ -488,6 +488,7 @@
                               @click="deleteCommentAttachment(attachment, comment)" 
                               class="comment-attachment-delete"
                               title="Hapus lampiran"
+                              v-if="canEditComment(comment)"
                             >
                               <font-awesome-icon icon="trash" size="sm" />
                             </button>
@@ -826,14 +827,35 @@ const isExistingTask = computed(() => {
 const lastOpenTaskId = ref(null);
 
 const availableMembers = computed(() => {
-  if (!props.projectMembers || !taskData.value.assignees) return props.projectMembers;
-  
-  const assignedIds = taskData.value.assignees.map(a => a.user_id);
-  const returnValue = props.projectMembers.filter(member => 
-    !assignedIds.includes(member.user_id) && !assignedIds.includes(member.id)
-  );
-  
-  return returnValue;
+  // Gather potential member sources in priority order
+  const sources = [];
+  if (Array.isArray(props.projectMembers) && props.projectMembers.length) sources.push(...props.projectMembers);
+  if (props.currentProject && Array.isArray(props.currentProject.members) && props.currentProject.members.length) sources.push(...props.currentProject.members);
+  if (props.task && props.task.project && Array.isArray(props.task.project.members) && props.task.project.members.length) sources.push(...props.task.project.members);
+  if (props.task && Array.isArray(props.task.members) && props.task.members.length) sources.push(...props.task.members);
+
+  // Deduplicate by id or user_id
+  const seen = new Set();
+  const normalized = [];
+  sources.forEach(m => {
+    const id = m.user_id || m.id || m.userId || m.uuid || null;
+    if (!id) return;
+    if (seen.has(id)) return;
+    seen.add(id);
+    normalized.push({
+      user_id: m.user_id || m.id || id,
+      user_name: m.user_name || m.name || m.full_name || m.username || m.email || '',
+      avatar: m.avatar || null,
+      id: m.id || m.user_id || id
+    });
+  });
+
+  // If there are no normalized members, return empty array
+  if (!normalized.length) return [];
+
+  // Filter out already assigned users
+  const assignedIds = (taskData.value.assignees || []).map(a => a.user_id || a.id).filter(Boolean);
+  return normalized.filter(m => !assignedIds.includes(m.user_id) && !assignedIds.includes(m.id));
 });
 
 // Title suffix to show workspace and project context (e.g. "Workspace / Project")
@@ -2862,9 +2884,15 @@ watch([
 
 .comment-text {
   font-size: 0.875rem;
-  color: #374151;
+  /* use CSS token if available for theming, fallback to default dark-gray */
+  color: var(--color-text, #374151);
   line-height: 1.5;
   word-wrap: break-word;
+}
+
+/* Dark mode override: when .dark is applied on documentElement, swap to a light text color */
+.dark .comment-text {
+  color: var(--color-text-dark, #e5e7eb);
 }
 
 /* Styling for rendered HTML in comments */

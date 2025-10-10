@@ -754,7 +754,7 @@
     :task="selectedTask"
     :task-statuses="taskStatuses"
     :task-priorities="taskPriorities"
-    :project-members="[]"
+    :project-members="projectMembers"
     @close="handleTaskModalClose"
     @task-updated="handleTaskUpdated"
     @task-deleted="handleTaskDeleted"
@@ -803,6 +803,7 @@ const showCreateTaskModal = ref(false);
 const showTaskModal = ref(false);
 const selectedTask = ref(null);
 const taskStatuses = ref([]);
+const projectMembers = ref([]); // members for TaskModal when opened from dashboard
 
 // Workspace form data
 const workspaceForm = ref({
@@ -1501,6 +1502,27 @@ const openTaskDetail = async (task) => {
   
   selectedTask.value = task;
   showTaskModal.value = true;
+  // Try to load project members so the assignee selector is populated when opening from Dashboard
+  try {
+    if (task.project && (task.project.slug || task.project.id)) {
+      // projectService.get expects a slug; prefer slug if available
+      const slug = task.project.slug || task.project.id;
+      const projectResp = await projectService.get(slug);
+      const proj = projectResp.data.data || projectResp.data || {};
+      // normalize members shape expected by TaskModal (user_id / id and user_name / name)
+      projectMembers.value = (proj.members || proj.users || []).map(m => ({
+        user_id: m.user_id || m.id,
+        user_name: m.name || m.full_name || m.user_name || m.username || m.email,
+        avatar: m.avatar || null,
+        id: m.id
+      }));
+    } else {
+      projectMembers.value = [];
+    }
+  } catch (err) {
+    console.error('Error loading project members for TaskModal:', err);
+    projectMembers.value = [];
+  }
 };
 
 const toggleTaskMenu = (taskId) => {

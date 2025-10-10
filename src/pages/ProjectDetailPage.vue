@@ -2442,6 +2442,7 @@ const getMemberRole = (member) => {
 const loadNotes = async (projectId) => {
   try {
     const response = await noteService.list({ model_type: 'project', model_id: projectId });
+    console.log(response);
     notes.value = response.data.data || [];
   } catch (error) {
     console.error('Error loading notes:', error);
