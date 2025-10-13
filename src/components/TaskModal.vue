@@ -52,7 +52,7 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Prioritas</label>
-                  <select v-model="taskData.priority_id" class="form-select" @change="markAsModified">
+                <select v-model="taskData.priority_id" class="form-select" @change="markAsModified" required aria-required="true">
                   <option value="">Pilih Prioritas</option>
                   <option v-for="priority in taskPriorities" :key="priority.id" :value="priority.id">
                     {{ priority.name }}
@@ -321,7 +321,7 @@
               <button 
                 @click="saveTask" 
                 class="btn btn-primary"
-                :disabled="saving || !isModified"
+                :disabled="saving || !isModified || !isFormValid"
               >
                 <font-awesome-icon v-if="saving" icon="spinner" spin />
                 <font-awesome-icon v-else icon="save" />
@@ -778,6 +778,14 @@ const originalTaskData = ref({});
 const isModified = ref(false);
 const saving = ref(false);
 const showAssigneeSelector = ref(false);
+
+// Simple form validation: ensure required fields are present
+const isFormValid = computed(() => {
+  // For now only priority is required per request. If more required fields are added, include them here.
+  // Accept both numeric and string IDs; treat empty string/null/undefined as invalid.
+  const p = taskData.value.priority_id;
+  return p !== null && p !== undefined && p !== '';
+});
 
 // Task Relations
 const relationTypes = ref([]);
