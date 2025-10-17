@@ -481,7 +481,7 @@
                   </div>
 
                   <div class="note-body">
-                    <p>{{ note.content }}</p>
+                    <div class="note-content" v-html="note.content"></div>
 
                     <div v-if="note.attachments && note.attachments.length" class="note-attachments">
                       <h4>Lampiran ({{ note.attachments_count || note.attachments.length }})</h4>
@@ -837,13 +837,10 @@
         <div class="modal-body">
           <div class="form-group">
             <label for="noteContent">Catatan</label>
-            <textarea 
-              id="noteContent"
+            <TipTapEditor 
               v-model="newNoteContent" 
-              placeholder="Tulis catatan untuk anggota proyek..." 
-              rows="6"
-              class="form-control"
-            ></textarea>
+              placeholder="Tulis catatan untuk anggota proyek..."
+            />
           </div>
           
           <div class="form-group">
@@ -1106,6 +1103,7 @@ import { userService } from '@/api/services/userService';
 import { useAuthStore } from '@/stores/auth';
 import { errorToast, successToast } from '@/utils/toast';
 import TaskModal from '@/components/TaskModal.vue';
+import TipTapEditor from '@/components/TipTapEditor.vue';
 import { priorityService } from '@/api/services/priorityService';
 
 const route = useRoute();
@@ -4412,6 +4410,85 @@ const handleTaskDeleted = async (taskId) => {
 .note-body p { 
   margin: 0; 
   color: var(--color-text); 
+}
+
+/* Note content styling for rendered HTML */
+.note-content {
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+.note-content p {
+  margin: 0 0 0.5em 0;
+}
+
+.note-content p:last-child {
+  margin-bottom: 0;
+}
+
+.note-content strong {
+  font-weight: 600;
+}
+
+.note-content em {
+  font-style: italic;
+}
+
+.note-content ul,
+.note-content ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.note-content li {
+  margin: 0.25em 0;
+}
+
+.note-content h1,
+.note-content h2,
+.note-content h3,
+.note-content h4,
+.note-content h5,
+.note-content h6 {
+  margin: 0.75em 0 0.5em 0;
+  font-weight: 600;
+}
+
+.note-content blockquote {
+  border-left: 3px solid var(--color-border);
+  padding-left: 1em;
+  margin: 0.5em 0;
+  color: var(--color-muted);
+}
+
+.note-content code {
+  background: var(--color-background-soft);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.note-content pre {
+  background: var(--color-background-soft);
+  padding: 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.note-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.note-content a {
+  color: var(--color-primary-600);
+  text-decoration: none;
+}
+
+.note-content a:hover {
+  text-decoration: underline;
 }
 
 .note-attachments ul { 
