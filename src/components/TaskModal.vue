@@ -708,7 +708,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 // template refs for file inputs
 const taskFileInput = ref(null);
 const commentFileInput = ref(null);
@@ -2180,6 +2180,21 @@ watch([
     lastOpenTaskId.value = null;
   }
 }, { immediate: true });
+
+// Keyboard shortcuts
+const handleKeyDown = (e) => {
+  if (e.key === 'Escape' && props.show) {
+    closeModal();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <style scoped>
@@ -2194,19 +2209,41 @@ watch([
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 5vh 5vw;
+  padding: 0;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .task-modal {
   background: white;
-  border-radius: 12px;
+  border-radius: 0;
   width: 100%;
-  height: 100%;
+  height: 100vh;
   max-width: none;
   max-height: none;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
+  animation: slideIn 0.25s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .modal-header {
@@ -2256,26 +2293,30 @@ watch([
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
 }
 
 .task-section {
-  flex: 0 0 70%;
+  flex: 0 0 65%;
   padding: 2rem;
   overflow-y: auto;
   border-right: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 /* When comments section is hidden (new task), task section takes full width */
 .modal-content.no-comments .task-section {
   flex: 1;
   border-right: none;
+  background: white;
 }
 
 .comments-section {
-  flex: 0 0 30%;
+  flex: 0 0 35%;
   display: flex;
   flex-direction: column;
-  background-color: #f9fafb;
+  background-color: white;
+  border-left: 1px solid #e5e7eb;
 }
 
 /* Task Form Styles */
@@ -3148,10 +3189,12 @@ html.dark .modal-title {
 
 html.dark .task-section {
   border-right-color: #374151;
+  background-color: #111827;
 }
 
 html.dark .comments-section {
-  background-color: #111827;
+  background-color: #1f2937;
+  border-left-color: #374151;
 }
 
 html.dark .comments-header {
@@ -4056,7 +4099,7 @@ html.dark .comment-attachment-delete:hover {
 /* Responsive */
 @media (max-width: 1024px) {
   .task-modal-overlay {
-    padding: 2vh 2vw;
+    padding: 0;
   }
   
   .modal-content {
@@ -4064,28 +4107,44 @@ html.dark .comment-attachment-delete:hover {
   }
   
   .task-section {
-    flex: none;
+    flex: 0 0 auto;
+    height: 55vh;
     border-right: none;
     border-bottom: 1px solid #e5e7eb;
-    max-height: 60vh;
+    overflow-y: auto;
   }
   
   /* When no comments section, task section can use full height */
   .modal-content.no-comments .task-section {
-    max-height: none;
+    height: auto;
+    flex: 1;
     border-bottom: none;
   }
   
   .comments-section {
-    flex: none;
-    height: 40vh;
+    flex: 1;
+    border-left: none;
+    border-top: 1px solid #e5e7eb;
+    min-height: 0;
+  }
+
+  .comments-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .add-comment-form {
+    flex-shrink: 0;
+  }
+
+  .modal-header {
+    padding: 1rem 1.5rem;
   }
   
   .form-row {
     grid-template-columns: 1fr;
   }
   
-  /* Even more compact on mobile for relations and comment attachments */
   .relations-container.relations-empty {
     padding: 0.5rem;
     margin-bottom: 0.5rem;
@@ -4096,40 +4155,148 @@ html.dark .comment-attachment-delete:hover {
   }
   
   .comment-drop {
-    padding: 0.5rem 0.75rem;
+    padding: 0.75rem;
   }
   
   .comment-drop + .file-previews,
   .comment-edit-form .file-previews {
-    margin-top: 0.375rem;
-    padding-top: 0.375rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
   }
 }
 
 @media (max-width: 640px) {
   .task-modal-overlay {
-    padding: 1vh 1vw;
+    padding: 0;
+  }
+
+  .task-modal {
+    width: 100%;
+    height: 100vh;
+    margin: 0;
   }
   
   .modal-header {
     padding: 1rem;
   }
+
+  .modal-title {
+    font-size: 1rem;
+  }
+
+  .modal-title-suffix {
+    font-size: 0.75rem;
+  }
   
   .task-section {
+    padding: 1rem;
+    height: 50vh;
+  }
+
+  .comments-section {
     padding: 1rem;
   }
   
   .form-actions {
     flex-direction: column;
+    gap: 0.5rem;
+    position: sticky;
+    bottom: 0;
+    background-color: #f9fafb;
+    padding: 1rem;
+    margin: 1rem -1rem -1rem;
+    border-top: 1px solid #e5e7eb;
+    z-index: 10;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.875rem 1rem;
+    font-size: 0.9375rem;
+  }
+
+  /* Comment form styling for mobile */
+  .add-comment-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background-color: white;
+    border-top: 1px solid #e5e7eb;
+    margin: 0 -1rem -1rem;
+  }
+
+  .comment-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .comment-input {
+    min-height: 80px;
+    font-size: 0.9375rem;
+  }
+
+  .comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0;
+  }
+
+  .comment-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.875rem 1rem;
+    font-size: 0.9375rem;
+  }
+
+  /* File drop area for comments - more visible on mobile */
+  .file-drop-area.comment-drop {
+    padding: 0.875rem;
+    margin: 0;
+    min-height: 60px;
+    border: 2px dashed #cbd5e1;
+  }
+
+  .comment-drop .file-drop-content {
+    flex-direction: row;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .comment-drop .file-drop-content svg {
+    font-size: 1.25rem;
+  }
+
+  /* File previews for comments */
+  .comment-drop + .file-previews {
+    margin-top: 0.5rem;
+  }
+
+  .file-preview {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .file-preview .btn {
+    width: 100%;
+  }
+
+  /* Comments list */
+  .comments-list {
+    margin-bottom: 0;
   }
   
   /* Extra compact on small screens */
-  .comment-drop .file-drop-content {
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.8125rem;
+  .relations-container.relations-empty {
+    padding: 0.5rem;
   }
-  
+
   .relations-container.relations-empty .empty-relations-content {
     gap: 0.375rem;
   }
@@ -4141,5 +4308,62 @@ html.dark .comment-attachment-delete:hover {
   .relations-container.relations-empty .empty-relations-subtext {
     font-size: 0.6875rem;
   }
+
+  /* Adjust form inputs for better mobile UX */
+  .form-input,
+  .form-textarea,
+  .form-select {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 0.75rem;
+  }
+
+  /* Better spacing for form groups */
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  /* Assignee tags - better wrapping */
+  .current-assignees {
+    gap: 0.5rem;
+  }
+
+  .assignee-tag {
+    font-size: 0.8125rem;
+  }
+
+  /* Comment items */
+  .comment-item {
+    padding: 0.75rem;
+  }
+
+  /* Edit comment form on mobile */
+  .comment-edit-form {
+    margin-top: 0.5rem;
+  }
+
+  .comment-edit-textarea {
+    font-size: 0.9375rem;
+    min-height: 80px;
+  }
+
+  .comment-edit-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .comment-edit-actions .btn {
+    width: 100%;
+  }
+}
+
+/* Dark mode for mobile sticky elements */
+html.dark .form-actions {
+  background-color: #111827;
+  border-top-color: #374151;
+}
+
+html.dark .add-comment-form {
+  background-color: #1f2937;
+  border-top-color: #374151;
 }
 </style>
