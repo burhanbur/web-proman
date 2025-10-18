@@ -1,6 +1,6 @@
 <template>
-  <div class="tiptap-editor-wrapper">
-    <div v-if="editor" class="tiptap-toolbar">
+  <div class="tiptap-editor-wrapper" :class="{ 'read-only': !editable }">
+    <div v-if="editor && editable" class="tiptap-toolbar">
       <button
         @click="editor.chain().focus().toggleBold().run()"
         :class="{ 'is-active': editor.isActive('bold') }"
@@ -177,6 +177,14 @@ const props = defineProps({
   placeholder: {
     type: String,
     default: 'Mulai menulis...'
+  },
+  editable: {
+    type: Boolean,
+    default: true
+  },
+  minHeight: {
+    type: Number,
+    default: null
   }
 });
 
@@ -184,10 +192,11 @@ const emit = defineEmits(['update:modelValue']);
 
 const editor = useEditor({
   content: props.modelValue,
+  editable: props.editable,
   extensions: [
     StarterKit,
     Link.configure({
-      openOnClick: false,
+      openOnClick: !props.editable, // Allow clicking links in read-only mode
       HTMLAttributes: {
         target: '_blank',
         rel: 'noopener noreferrer',
@@ -199,7 +208,9 @@ const editor = useEditor({
     Underline,
   ],
   onUpdate: ({ editor }) => {
-    emit('update:modelValue', editor.getHTML());
+    if (props.editable) {
+      emit('update:modelValue', editor.getHTML());
+    }
   },
   editorProps: {
     attributes: {
@@ -207,6 +218,13 @@ const editor = useEditor({
       placeholder: props.placeholder,
     },
   },
+});
+
+// Watch for editable changes
+watch(() => props.editable, (value) => {
+  if (editor.value) {
+    editor.value.setEditable(value);
+  }
 });
 
 // Watch for external changes to modelValue
@@ -476,5 +494,28 @@ html.dark :deep(.tiptap-editor a) {
 
 html.dark :deep(.tiptap-editor a:hover) {
   color: #93c5fd;
+}
+
+/* Read-only mode styles */
+.tiptap-editor-wrapper.read-only {
+  border: none;
+  background: transparent;
+}
+
+.tiptap-editor-wrapper.read-only .tiptap-content {
+  padding: 0;
+}
+
+.tiptap-editor-wrapper.read-only :deep(.tiptap-editor) {
+  padding: 0;
+  cursor: default;
+}
+
+.tiptap-editor-wrapper.read-only :deep(.tiptap-editor:focus) {
+  outline: none;
+}
+
+.tiptap-editor-wrapper.read-only :deep(.tiptap-editor p.is-editor-empty:first-child::before) {
+  content: none;
 }
 </style>

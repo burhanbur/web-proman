@@ -356,7 +356,7 @@
           </div>
 
           <!-- Comments List -->
-          <div class="comments-list">
+          <div ref="commentsListRef" class="comments-list">
             <div v-if="loadingComments" class="comments-loading">
               <div class="loading-spinner small"></div>
               <p>Memuat komentar...</p>
@@ -383,80 +383,81 @@
                     <span class="comment-author">{{ comment.user?.name || 'Unknown User' }}</span>
                     <span class="comment-time">{{ formatCommentDate(comment.created_at) }}</span>
                   </div>
-                  <div class="comment-body">
-                    <!-- Edit mode -->
-                    <div v-if="editingCommentId === (comment.uuid || comment.id)" class="comment-edit-form">
-                      <textarea 
-                        v-model="editCommentText"
-                        class="comment-edit-textarea"
-                        rows="3"
-                        @keydown.ctrl.enter="saveCommentEdit(comment)"
-                        @keydown.esc="cancelCommentEdit"
-                      ></textarea>
-                      
-                      <!-- Edit Comment attachments (drag & drop) -->
-                      <div class="form-group">
-                        <div
-                          class="file-drop-area comment-drop"
-                          :class="{ 'is-dragover': editCommentDropActive }"
-                          @dragover.prevent="onEditCommentDragOver"
-                          @dragenter.prevent="onEditCommentDragEnter"
-                          @dragleave.prevent="onEditCommentDragLeave"
-                          @drop.prevent="onEditCommentDrop"
-                          @click="triggerEditCommentFileInput"
-                          role="button"
-                          tabindex="0"
-                        >
-                          <input 
-                            ref="editCommentFileInput" 
-                            type="file" 
-                            multiple 
-                            style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;"
-                            @change="onEditCommentFilesSelected" 
-                          />
-                          <div class="file-drop-content">
-                            <font-awesome-icon icon="paperclip" />
-                            <span v-if="editCommentAttachments.length === 0">Tambahkan lampiran (klik atau seret file)</span>
-                            <span v-else>{{ editCommentAttachments.length }} file dilampirkan</span>
-                          </div>
-                        </div>
-
-                        <div v-if="editCommentAttachments.length" class="file-previews">
-                          <div v-for="(f, idx) in editCommentAttachments" :key="f._uid" class="file-preview">
-                            <div class="file-meta">
-                              <div class="file-name">{{ f.name }}</div>
-                              <div class="file-size">{{ formatBytes(f.size) }}</div>
+                  <div class="comment-body-wrapper">
+                    <div class="comment-body">
+                      <!-- Edit mode -->
+                      <div v-if="editingCommentId === (comment.uuid || comment.id)" class="comment-edit-form">
+                        <textarea 
+                          v-model="editCommentText"
+                          class="comment-edit-textarea"
+                          rows="3"
+                          @keydown.ctrl.enter="saveCommentEdit(comment)"
+                          @keydown.esc="cancelCommentEdit"
+                        ></textarea>
+                        
+                        <!-- Edit Comment attachments (drag & drop) -->
+                        <div class="form-group">
+                          <div
+                            class="file-drop-area comment-drop"
+                            :class="{ 'is-dragover': editCommentDropActive }"
+                            @dragover.prevent="onEditCommentDragOver"
+                            @dragenter.prevent="onEditCommentDragEnter"
+                            @dragleave.prevent="onEditCommentDragLeave"
+                            @drop.prevent="onEditCommentDrop"
+                            @click="triggerEditCommentFileInput"
+                            role="button"
+                            tabindex="0"
+                          >
+                            <input 
+                              ref="editCommentFileInput" 
+                              type="file" 
+                              multiple 
+                              style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;"
+                              @change="onEditCommentFilesSelected" 
+                            />
+                            <div class="file-drop-content">
+                              <font-awesome-icon icon="paperclip" />
+                              <span v-if="editCommentAttachments.length === 0">Tambahkan lampiran (klik atau seret file)</span>
+                              <span v-else>{{ editCommentAttachments.length }} file dilampirkan</span>
                             </div>
-                            <button type="button" class="btn btn-outline btn-sm" @click="removeEditCommentAttachment(idx)">Hapus</button>
                           </div>
+
+                          <div v-if="editCommentAttachments.length" class="file-previews">
+                            <div v-for="(f, idx) in editCommentAttachments" :key="f._uid" class="file-preview">
+                              <div class="file-meta">
+                                <div class="file-name">{{ f.name }}</div>
+                                <div class="file-size">{{ formatBytes(f.size) }}</div>
+                              </div>
+                              <button type="button" class="btn btn-outline btn-sm" @click="removeEditCommentAttachment(idx)">Hapus</button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div class="comment-edit-actions">
+                          <button 
+                            @click="saveCommentEdit(comment)"
+                            class="btn btn-primary btn-sm"
+                            :disabled="!editCommentText.trim() || savingComment"
+                          >
+                            <font-awesome-icon v-if="savingComment" icon="spinner" spin />
+                            <font-awesome-icon v-else icon="save" />
+                            {{ savingComment ? 'Menyimpan...' : 'Simpan' }}
+                          </button>
+                          <button 
+                            @click="cancelCommentEdit"
+                            class="btn btn-secondary btn-sm"
+                            :disabled="savingComment"
+                          >
+                            <font-awesome-icon icon="times" />
+                            Batal
+                          </button>
                         </div>
                       </div>
                       
-                      <div class="comment-edit-actions">
-                        <button 
-                          @click="saveCommentEdit(comment)"
-                          class="btn btn-primary btn-sm"
-                          :disabled="!editCommentText.trim() || savingComment"
-                        >
-                          <font-awesome-icon v-if="savingComment" icon="spinner" spin />
-                          <font-awesome-icon v-else icon="save" />
-                          {{ savingComment ? 'Menyimpan...' : 'Simpan' }}
-                        </button>
-                        <button 
-                          @click="cancelCommentEdit"
-                          class="btn btn-secondary btn-sm"
-                          :disabled="savingComment"
-                        >
-                          <font-awesome-icon icon="times" />
-                          Batal
-                        </button>
+                      <!-- View mode -->
+                      <div v-else>
+                        <div class="comment-text" v-html="comment.comment"></div>
                       </div>
-                    </div>
-                    
-                    <!-- View mode -->
-                    <div v-else>
-                      <div class="comment-text" v-html="comment.comment"></div>
-                    </div>
                     
                     <!-- Comment Attachments Display -->
                     <div v-if="comment.attachments && comment.attachments.length > 0" class="comment-attachments">
@@ -496,82 +497,87 @@
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <div class="comment-actions" v-if="canEditComment(comment)">
-                    <button 
-                      @click="editComment(comment)" 
-                      class="comment-action-btn"
-                    >
-                      <font-awesome-icon icon="edit" size="sm" />
-                    </button>
-                    <button 
-                      @click="deleteComment(comment.uuid || comment.id)" 
-                      class="comment-action-btn delete"
-                    >
-                      <font-awesome-icon icon="trash" size="sm" />
-                    </button>
+                    </div>
+                    <div class="comment-actions" v-if="canEditComment(comment) && editingCommentId !== (comment.uuid || comment.id)">
+                      <button 
+                        @click="editComment(comment)" 
+                        class="comment-action-btn"
+                        title="Edit"
+                      >
+                        <font-awesome-icon icon="edit" size="sm" />
+                      </button>
+                      <button 
+                        @click="deleteComment(comment.uuid || comment.id)" 
+                        class="comment-action-btn delete"
+                        title="Hapus"
+                      >
+                        <font-awesome-icon icon="trash" size="sm" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Add Comment Form (moved below list) -->
-          <div class="add-comment-form" style="border-top:1px solid var(--tw-border-opacity, #e5e7eb);">
-            <div class="comment-input-group">
+          <!-- Add Comment Form (compact design) -->
+          <div class="add-comment-form">
+            <!-- File previews (show above input when exists) -->
+            <div v-if="commentAttachments.length" class="compact-file-previews">
+              <div v-for="(f, idx) in commentAttachments" :key="f._uid" class="compact-file-item">
+                <font-awesome-icon :icon="getFileIcon(f.type)" :class="getFileIconClass(f.type)" />
+                <span class="compact-file-name">{{ f.name }}</span>
+                <span class="compact-file-size">{{ formatBytes(f.size) }}</span>
+                <button type="button" class="compact-file-remove" @click="removeCommentAttachment(idx)" title="Hapus">
+                  <font-awesome-icon icon="times" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Main input row -->
+            <div class="compact-comment-row">
               <div class="user-avatar">
                 <img v-if="currentUser?.avatar" :src="currentUser.avatar" :alt="currentUser.name" />
                 <div v-else class="user-avatar-fallback">{{ getMemberInitials(currentUser?.name || '') }}</div>
               </div>
-              <textarea 
-                v-model="newComment" 
-                class="comment-input"
-                placeholder="Tulis komentar..."
-                rows="3"
-                @keydown.ctrl.enter="addComment"
-              ></textarea>
-            </div>
-            <!-- Comment attachments (drag & drop) -->
-            <div class="form-group">
-              <div
-                class="file-drop-area comment-drop"
-                :class="{ 'is-dragover': commentDropActive }"
-                @dragover.prevent="onCommentDragOver"
-                @dragenter.prevent="onCommentDragEnter"
-                @dragleave.prevent="onCommentDragLeave"
-                @drop.prevent="onCommentDrop"
-                @click="triggerCommentFileInput"
-                role="button"
-                tabindex="0"
-              >
-                <input ref="commentFileInput" type="file" multiple class="sr-only" @change="onCommentFilesSelected" />
-                <div class="file-drop-content">
-                  <font-awesome-icon icon="paperclip" />
-                  <span v-if="commentAttachments.length === 0">Tambahkan lampiran untuk komentar (klik atau seret file)</span>
-                  <span v-else>{{ commentAttachments.length }} file dilampirkan</span>
+              
+              <div class="compact-input-wrapper">
+                <textarea 
+                  v-model="newComment" 
+                  class="compact-comment-input"
+                  placeholder="Tulis komentar... (Ctrl+Enter untuk kirim)"
+                  rows="1"
+                  @keydown.ctrl.enter="addComment"
+                  @focus="$event.target.rows = 2"
+                  @blur="$event.target.value.trim() === '' ? $event.target.rows = 1 : null"
+                ></textarea>
+                
+                <!-- Action buttons inline -->
+                <div class="compact-actions">
+                  <button 
+                    type="button"
+                    @click="triggerCommentFileInput"
+                    class="compact-action-btn"
+                    title="Lampirkan file"
+                  >
+                    <font-awesome-icon icon="paperclip" />
+                  </button>
+                  <input ref="commentFileInput" type="file" multiple class="sr-only" @change="onCommentFilesSelected" 
+                    @dragover.prevent="commentDropActive = true"
+                    @dragleave.prevent="commentDropActive = false"
+                    @drop.prevent="onCommentDrop"
+                  />
+                  <button 
+                    @click="addComment" 
+                    class="compact-send-btn"
+                    :disabled="!newComment.trim() || addingComment"
+                    title="Kirim komentar"
+                  >
+                    <font-awesome-icon v-if="addingComment" icon="spinner" spin />
+                    <font-awesome-icon v-else icon="paper-plane" />
+                  </button>
                 </div>
               </div>
-
-              <div v-if="commentAttachments.length" class="file-previews">
-                <div v-for="(f, idx) in commentAttachments" :key="f._uid" class="file-preview">
-                  <div class="file-meta">
-                    <div class="file-name">{{ f.name }}</div>
-                    <div class="file-size">{{ formatBytes(f.size) }}</div>
-                  </div>
-                  <button type="button" class="btn btn-outline btn-sm" @click="removeCommentAttachment(idx)">Hapus</button>
-                </div>
-              </div>
-            </div>
-            <div class="comment-actions">
-              <button 
-                @click="addComment" 
-                class="btn btn-primary btn-sm"
-                :disabled="!newComment.trim() || addingComment"
-              >
-                <font-awesome-icon v-if="addingComment" icon="spinner" spin />
-                <font-awesome-icon v-else icon="paper-plane" />
-                {{ addingComment ? 'Mengirim...' : 'Kirim' }}
-              </button>
             </div>
           </div>
         </div>
@@ -713,6 +719,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 const taskFileInput = ref(null);
 const commentFileInput = ref(null);
 const editCommentFileInput = ref(null);
+const commentsListRef = ref(null);
 import { taskService } from '@/api/services/taskService';
 import { commentService } from '@/api/services/commentService';
 import { attachmentService } from '@/api/services/attachmentService';
@@ -1440,6 +1447,17 @@ const loadComments = async () => {
   }
 };
 
+// Helper function to scroll to bottom of comments
+const scrollToBottom = async () => {
+  await nextTick();
+  if (commentsListRef.value) {
+    commentsListRef.value.scrollTo({
+      top: commentsListRef.value.scrollHeight,
+      behavior: 'smooth'
+    });
+  }
+};
+
 const addComment = async () => {
   if (!newComment.value.trim()) return;
   
@@ -1487,10 +1505,14 @@ const addComment = async () => {
     if (hasFiles) {
       await refreshTaskData();
       await loadComments(); // Refresh comments to get complete attachment data
+      // Scroll to bottom after loading comments
+      await scrollToBottom();
     } else {
-      // For comments without files, just add the new comment to the beginning of the list
+      // For comments without files, add the new comment to the END of the list (bottom)
       const newCommentData = response.data.data || response.data;
-      comments.value.unshift(newCommentData);
+      comments.value.push(newCommentData);
+      // Scroll to the new comment
+      await scrollToBottom();
     }
     
     successToast('Komentar berhasil ditambahkan');
@@ -2483,7 +2505,7 @@ onUnmounted(() => {
 
 /* Comments Styles */
 .comments-header {
-  padding: 1.5rem 1.5rem 1rem;
+  padding: 0.75rem 1.5rem 0.75rem;
   border-bottom: 1px solid #e5e7eb;
   flex-shrink: 0;
 }
@@ -2505,11 +2527,152 @@ onUnmounted(() => {
 }
 
 .add-comment-form {
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e5e7eb;
   flex-shrink: 0;
+  background: #fafafa;
 }
 
+/* Compact file previews */
+.compact-file-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.compact-file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.75rem;
+}
+
+.compact-file-name {
+  color: #374151;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-file-size {
+  color: #9ca3af;
+  font-size: 0.6875rem;
+}
+
+.compact-file-remove {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.125rem;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  margin-left: 0.25rem;
+}
+
+.compact-file-remove:hover {
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+/* Compact comment row */
+.compact-comment-row {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+}
+
+.compact-input-wrapper {
+  flex: 1;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0.5rem;
+  transition: all 0.2s;
+}
+
+.compact-input-wrapper:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.compact-comment-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 0.25rem;
+  min-height: 32px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-family: inherit;
+}
+
+.compact-comment-input::placeholder {
+  color: #9ca3af;
+}
+
+.compact-actions {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+}
+
+.compact-action-btn {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.375rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.compact-action-btn:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
+
+.compact-send-btn {
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-primary-600));
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+}
+
+.compact-send-btn:hover:not(:disabled) {
+  filter: brightness(0.95);
+  transform: translateY(-1px);
+}
+
+.compact-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Legacy styles for backwards compatibility */
 .comment-input-group {
   display: flex;
   gap: 0.75rem;
@@ -2919,8 +3082,15 @@ onUnmounted(() => {
   color: #6b7280;
 }
 
+.comment-body-wrapper {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
 .comment-body {
-  margin-bottom: 0.5rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .comment-body p {
@@ -3066,7 +3236,15 @@ onUnmounted(() => {
 
 .comment-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.comment-item:hover .comment-actions {
+  opacity: 1;
 }
 
 .comment-action-btn {
@@ -3074,9 +3252,14 @@ onUnmounted(() => {
   border: none;
   color: #6b7280;
   cursor: pointer;
-  padding: 0.25rem;
+  padding: 0.375rem;
   border-radius: 4px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
 }
 
 .comment-action-btn:hover {
@@ -3267,6 +3450,20 @@ html.dark .comment-time {
 
 html.dark .comment-body p {
   color: #d1d5db;
+}
+
+html.dark .comment-action-btn {
+  color: #9ca3af;
+}
+
+html.dark .comment-action-btn:hover {
+  color: #f9fafb;
+  background-color: #374151;
+}
+
+html.dark .comment-action-btn.delete:hover {
+  color: #f87171;
+  background-color: #7f1d1d;
 }
 
 /* Dark mode for comment editing */
@@ -4163,6 +4360,11 @@ html.dark .comment-attachment-delete:hover {
     margin-top: 0.5rem;
     padding-top: 0.5rem;
   }
+
+  /* Comment actions on tablet */
+  .comment-actions {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 640px) {
@@ -4218,37 +4420,45 @@ html.dark .comment-attachment-delete:hover {
 
   /* Comment form styling for mobile */
   .add-comment-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 1rem;
-    background-color: white;
-    border-top: 1px solid #e5e7eb;
-    margin: 0 -1rem -1rem;
+    padding: 0.75rem;
+    background-color: #fafafa;
   }
 
-  .comment-input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+  .compact-comment-row {
+    gap: 0.5rem;
   }
 
-  .comment-input {
-    min-height: 80px;
-    font-size: 0.9375rem;
+  .compact-input-wrapper {
+    padding: 0.625rem;
   }
 
-  .comment-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 0;
+  .compact-comment-input {
+    font-size: 16px; /* Prevent iOS zoom */
   }
 
-  .comment-actions .btn {
+  .compact-actions {
+    gap: 0.5rem;
+  }
+
+  .compact-action-btn {
+    padding: 0.5rem;
+  }
+
+  .compact-send-btn {
+    padding: 0.625rem 0.875rem;
+  }
+
+  .compact-file-previews {
+    gap: 0.375rem;
+  }
+
+  .compact-file-item {
     width: 100%;
-    justify-content: center;
-    padding: 0.875rem 1rem;
-    font-size: 0.9375rem;
+    font-size: 0.8125rem;
+  }
+
+  .compact-file-name {
+    max-width: 160px;
   }
 
   /* File drop area for comments - more visible on mobile */
@@ -4336,6 +4546,23 @@ html.dark .comment-attachment-delete:hover {
     padding: 0.75rem;
   }
 
+  /* Comment body wrapper on mobile - keep inline */
+  .comment-body-wrapper {
+    gap: 0.5rem;
+  }
+
+  /* Comment actions - always visible on mobile */
+  .comment-actions {
+    opacity: 1;
+    gap: 0.25rem;
+  }
+
+  .comment-action-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 0.875rem;
+  }
+
   /* Edit comment form on mobile */
   .comment-edit-form {
     margin-top: 0.5rem;
@@ -4363,7 +4590,54 @@ html.dark .form-actions {
 }
 
 html.dark .add-comment-form {
-  background-color: #1f2937;
+  background-color: #111827;
   border-top-color: #374151;
+}
+
+/* Dark mode for compact comment form */
+html.dark .compact-input-wrapper {
+  background: #1f2937;
+  border-color: #4b5563;
+}
+
+html.dark .compact-input-wrapper:focus-within {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+}
+
+html.dark .compact-comment-input {
+  background: #1f2937;
+  color: #f9fafb;
+}
+
+html.dark .compact-comment-input::placeholder {
+  color: #6b7280;
+}
+
+html.dark .compact-action-btn {
+  color: #9ca3af;
+}
+
+html.dark .compact-action-btn:hover {
+  color: #f9fafb;
+  background: #374151;
+}
+
+html.dark .compact-file-item {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .compact-file-name {
+  color: #d1d5db;
+}
+
+html.dark .compact-file-size {
+  color: #6b7280;
+}
+
+html.dark .compact-file-remove:hover {
+  color: #f87171;
+  background: #7f1d1d;
 }
 </style>

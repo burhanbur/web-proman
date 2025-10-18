@@ -199,11 +199,11 @@
                 </div>
                 <div class="member-actions">
                   <div class="member-actions-menu">
-                    <!-- Only show menu button and dropdown to users who can manage members -->
-                    <button v-if="canInviteMembers && !isMemberSelf(member)" class="btn-icon" title="Menu" @click.stop="toggleMemberMenu(getMemberKey(member) || i)">
+                    <!-- Show menu button if user can manage this member -->
+                    <button v-if="canManageMember(member)" class="btn-icon" title="Menu" @click.stop="toggleMemberMenu(getMemberKey(member) || i)">
                       <font-awesome-icon icon="ellipsis-vertical" size="sm" />
                     </button>
-                    <div v-if="canInviteMembers && !isMemberSelf(member) && menuOpenFor === (getMemberKey(member) || i)" class="member-menu-dropdown" @click.stop>
+                    <div v-if="canManageMember(member) && menuOpenFor === (getMemberKey(member) || i)" class="member-menu-dropdown" @click.stop>
                       <button class="dropdown-item" @click="openEditMemberModal(member)">Edit Peran</button>
                       <button class="dropdown-item text-danger" @click="openRemoveMemberModal(member)">Hapus</button>
                     </div>
@@ -398,29 +398,95 @@
                 </div>
 
                 <div v-else class="note-card" v-for="note in notes" :key="note.id">
-                  <div class="note-header">
-                    <div class="note-author">
-                      <strong>{{ note.created_by?.name || note.created_by?.email || 'Pengguna' }}</strong>
-                      <span class="note-meta">• {{ formatDateTime(note.created_at) }}</span>
-                    </div>
-                    <div class="note-actions">
-                      <button v-if="authStore.user && authStore.user.id === note.created_by?.id" class="btn-icon" @click="deleteNote(note.id)">
-                        <font-awesome-icon icon="trash" size="sm" />
-                      </button>
+                  <div class="note-avatar">
+                    <img v-if="note.created_by?.avatar" :src="note.created_by.avatar" :alt="note.created_by.name" />
+                    <div v-else class="note-avatar-fallback">
+                      {{ getMemberInitials(note.created_by?.name || note.created_by?.email || 'U') }}
                     </div>
                   </div>
+                  
+                  <div class="note-main">
+                    <div class="note-header">
+                      <div class="note-author-info">
+                        <h4 class="note-author-name">{{ note.created_by?.name || note.created_by?.email || 'Pengguna' }}</h4>
+                        <span class="note-timestamp">
+                          <font-awesome-icon icon="clock" size="xs" />
+                          {{ formatDateTime(note.created_at) }}
+                          <span v-if="note.updated_at && note.updated_at !== note.created_at" class="note-edited">
+                            • diedit
+                          </span>
+                        </span>
+                      </div>
+                      <div class="note-actions" v-if="authStore.user && authStore.user.id === note.created_by?.id">
+                        <button 
+                          v-if="editingNoteId !== note.id"
+                          class="btn-icon-edit" 
+                          @click="startEditNote(note)" 
+                          title="Edit catatan"
+                        >
+                          <font-awesome-icon icon="edit" size="sm" />
+                        </button>
+                        <button 
+                          v-if="editingNoteId !== note.id"
+                          class="btn-icon-danger" 
+                          @click="deleteNote(note.id)" 
+                          title="Hapus catatan"
+                        >
+                          <font-awesome-icon icon="trash" size="sm" />
+                        </button>
+                      </div>
+                    </div>
 
-                  <div class="note-body">
-                    <div class="note-content" v-html="note.content"></div>
+                    <div class="note-body">
+                      <!-- Edit Mode -->
+                      <div v-if="editingNoteId === note.id" class="note-edit-mode">
+                        <TipTapEditor 
+                          v-model="editNoteContent" 
+                          placeholder="Edit catatan Anda..." 
+                          :min-height="150"
+                          :editable="true"
+                        />
+                        <div class="note-edit-actions">
+                          <button class="btn btn-secondary btn-sm" @click="cancelEditNote" :disabled="updatingNote">
+                            <font-awesome-icon icon="times" size="sm" />
+                            Batal
+                          </button>
+                          <button class="btn btn-primary btn-sm" @click="saveEditNote(note.id)" :disabled="updatingNote || !editNoteContent.trim()">
+                            <font-awesome-icon v-if="updatingNote" icon="spinner" spin size="sm" />
+                            <font-awesome-icon v-else icon="save" size="sm" />
+                            {{ updatingNote ? 'Menyimpan...' : 'Simpan' }}
+                          </button>
+                        </div>
+                      </div>
 
-                    <div v-if="note.attachments && note.attachments.length" class="note-attachments">
-                      <h4>Lampiran ({{ note.attachments_count || note.attachments.length }})</h4>
-                      <ul>
-                        <li v-for="att in note.attachments" :key="att.attachment_id">
-                          <a :href="`/storage/${att.file_path}`" target="_blank" rel="noopener noreferrer">{{ att.original_filename }}</a>
-                          <small class="muted"> — {{ att.mime_type }} • {{ formatFileSize(att.file_size) }}</small>
-                        </li>
-                      </ul>
+                      <!-- View Mode with WYSIWYG -->
+                      <div v-else class="note-view-mode">
+                        <TipTapEditor 
+                          v-model="note.content" 
+                          :editable="false"
+                        />
+                      </div>
+
+                      <div v-if="note.attachments && note.attachments.length" class="note-attachments">
+                        <div class="attachments-header">
+                          <font-awesome-icon icon="paperclip" size="sm" />
+                          <span>{{ note.attachments_count || note.attachments.length }} Lampiran</span>
+                        </div>
+                        <div class="attachments-list">
+                          <a 
+                            v-for="att in note.attachments" 
+                            :key="att.attachment_id"
+                            :href="`/storage/${att.file_path}`" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            class="attachment-item"
+                          >
+                            <font-awesome-icon icon="file" size="sm" />
+                            <span class="attachment-name">{{ att.original_filename }}</span>
+                            <span class="attachment-size">{{ formatFileSize(att.file_size) }}</span>
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -956,6 +1022,11 @@ const showCreateNoteModal = ref(false);
 const selectedFiles = ref([]);
 const isDragOver = ref(false);
 
+// Edit note state
+const editingNoteId = ref(null);
+const editNoteContent = ref('');
+const updatingNote = ref(false);
+
 // Create project state
 const newProject = ref({
   name: '',
@@ -1417,12 +1488,8 @@ const showRemoveMemberModal = ref(false);
 const removingMember = ref(false);
 
 const openEditMemberModal = async (member) => {
-  if (!canInviteMembers.value) {
-    errorToast('Anda tidak memiliki izin untuk mengubah peran anggota');
-    return;
-  }
-  if (isMemberSelf(member)) {
-    errorToast('Anda tidak dapat mengubah peran akun Anda sendiri');
+  if (!canManageMember(member)) {
+    errorToast('Anda tidak memiliki izin untuk mengubah peran anggota ini');
     return;
   }
   editMember.value = member;
@@ -1434,11 +1501,10 @@ const openEditMemberModal = async (member) => {
 };
 
 const updateMemberRole = async () => {
-  if (!canInviteMembers.value) {
-    errorToast('Anda tidak memiliki izin untuk mengubah peran anggota');
+  if (!editMember.value || !canManageMember(editMember.value)) {
+    errorToast('Anda tidak memiliki izin untuk mengubah peran anggota ini');
     return;
   }
-  if (!editMember.value) return;
   if (!editMemberWorkspaceRoleId.value) { errorToast('Pilih peran'); return; }
   updatingMember.value = true;
   try {
@@ -1461,12 +1527,8 @@ const updateMemberRole = async () => {
 };
 
 const openRemoveMemberModal = (member) => {
-  if (!canInviteMembers.value) {
-    errorToast('Anda tidak memiliki izin untuk menghapus anggota');
-    return;
-  }
-  if (isMemberSelf(member)) {
-    errorToast('Anda tidak dapat menghapus akun Anda sendiri dari workspace');
+  if (!canManageMember(member)) {
+    errorToast('Anda tidak memiliki izin untuk menghapus anggota ini');
     return;
   }
   // prefer confirm modal for destructive action; still keep the remove member modal flow
@@ -1481,8 +1543,8 @@ const openRemoveMemberModal = (member) => {
 
 const confirmRemoveMember = async () => {
   // This flow is now handled centrally by the confirm modal (handleConfirm)
-  if (!canInviteMembers.value) {
-    errorToast('Anda tidak memiliki izin untuk menghapus anggota');
+  if (!removeMemberTarget.value || !canManageMember(removeMemberTarget.value)) {
+    errorToast('Anda tidak memiliki izin untuk menghapus anggota ini');
     return;
   }
   // If the removal was triggered from the modal, ensure payload exists and call handleConfirm
@@ -1873,6 +1935,49 @@ const deleteNote = async (noteId) => {
   });
 };
 
+// Edit note functions
+const startEditNote = (note) => {
+  editingNoteId.value = note.id;
+  editNoteContent.value = note.content || '';
+};
+
+const cancelEditNote = () => {
+  editingNoteId.value = null;
+  editNoteContent.value = '';
+  updatingNote.value = false;
+};
+
+const saveEditNote = async (noteId) => {
+  if (!editNoteContent.value.trim()) {
+    errorToast('Catatan tidak boleh kosong');
+    return;
+  }
+
+  updatingNote.value = true;
+  try {
+    const res = await noteService.update(noteId, {
+      content: editNoteContent.value
+    });
+
+    if (res.data && res.data.success) {
+      successToast(res.data.message || 'Catatan berhasil diperbarui');
+      // Update note in list
+      const noteIndex = notes.value.findIndex(n => n.id === noteId);
+      if (noteIndex !== -1) {
+        notes.value[noteIndex] = { ...notes.value[noteIndex], ...res.data.data };
+      }
+      cancelEditNote();
+    } else {
+      errorToast(res.data?.message || 'Gagal memperbarui catatan');
+    }
+  } catch (error) {
+    console.error('Error updating note:', error);
+    errorToast(error.response?.data?.message || 'Terjadi kesalahan saat memperbarui catatan');
+  } finally {
+    updatingNote.value = false;
+  }
+};
+
 const formatFileSize = (size) => {
   if (!size && size !== 0) return '';
   const i = size === 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
@@ -2003,6 +2108,44 @@ const isMemberSelf = (member) => {
   if (!user || !member) return false;
   const mid = getMemberKey(member);
   return String(mid) === String(user.id) || String(member.email || member.user?.email) === String(user.email);
+};
+
+// Check if current user can manage a specific member
+// Owner can manage all members including other Owners (except themselves)
+// Admin can manage all members except Owner and themselves
+// System Admin can manage all members
+const canManageMember = (member) => {
+  if (!authStore.user || !member) return false;
+  
+  // Can't manage yourself
+  if (isMemberSelf(member)) return false;
+  
+  // Get member's role
+  const memberRole = (member.role || member.workspace_role || '').toString().toLowerCase();
+  const isMemberOwner = memberRole.includes('owner');
+  
+  // System admin can manage all members (including owners)
+  if (isSysAdmin.value) {
+    return true;
+  }
+  
+  // Get current user's workspace role
+  const currentRole = (currentWorkspaceRole.value || '').toString().toLowerCase();
+  const isCurrentOwner = currentRole.includes('owner');
+  const isCurrentAdmin = currentRole.includes('admin');
+  
+  // Owner can manage all members including other Owners (except themselves, already checked above)
+  if (isCurrentOwner) {
+    return true;
+  }
+  
+  // Admin can manage all except Owner
+  if (isCurrentAdmin) {
+    return !isMemberOwner;
+  }
+  
+  // Others can't manage
+  return false;
 };
 
 // Check if a user object is already a member of the workspace
@@ -2971,7 +3114,7 @@ const toggleProjectMenu = (projectId) => {
   justify-content: space-between;
   align-items: center;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 2px solid var(--color-border);
 }
 
 .notes-header h3 {
@@ -2981,26 +3124,181 @@ const toggleProjectMenu = (projectId) => {
   color: var(--color-text);
 }
 
-.note-card {
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 16px;
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
+
+.note-card {
+  display: flex;
+  gap: 16px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.note-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--color-primary-400);
+  transform: translateY(-1px);
+}
+
+.note-avatar {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.note-avatar-fallback {
+  color: white;
+  font-weight: 600;
+  font-size: 18px;
+  text-transform: uppercase;
+}
+
+.note-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .note-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  align-items: flex-start;
+  margin-bottom: 12px;
 }
-.note-author { color: var(--color-text); }
-.note-meta { color: var(--color-muted); font-size: 13px; margin-left: 8px; }
-.note-body p { margin: 0; color: var(--color-text); }
+
+.note-author-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.note-author-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.note-timestamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.note-timestamp svg {
+  opacity: 0.7;
+}
+
+.note-edited {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.note-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon-edit {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-edit:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.note-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon-danger {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-danger:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.note-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note-edit-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-background-soft);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.note-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.note-view-mode {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  gap: 6px;
+}
 
 /* Note content styling for rendered HTML */
 .note-content {
   color: var(--color-text);
   line-height: 1.6;
+  font-size: 14px;
 }
 
 .note-content p {
@@ -3040,10 +3338,12 @@ const toggleProjectMenu = (projectId) => {
 }
 
 .note-content blockquote {
-  border-left: 3px solid var(--color-border);
-  padding-left: 1em;
+  border-left: 3px solid var(--color-primary-500);
+  background: var(--color-background-soft);
+  padding: 12px 16px;
   margin: 0.5em 0;
-  color: var(--color-muted);
+  border-radius: 4px;
+  color: var(--color-text);
 }
 
 .note-content code {
@@ -3052,6 +3352,7 @@ const toggleProjectMenu = (projectId) => {
   border-radius: 3px;
   font-family: monospace;
   font-size: 0.9em;
+  color: var(--color-primary-600);
 }
 
 .note-content pre {
@@ -3060,26 +3361,121 @@ const toggleProjectMenu = (projectId) => {
   border-radius: 6px;
   overflow-x: auto;
   margin: 0.5em 0;
+  border: 1px solid var(--color-border);
 }
 
 .note-content pre code {
   background: none;
   padding: 0;
+  color: var(--color-text);
 }
 
 .note-content a {
   color: var(--color-primary-600);
   text-decoration: none;
+  font-weight: 500;
 }
 
 .note-content a:hover {
   text-decoration: underline;
 }
 
-.note-attachments ul { list-style: none; padding: 0; margin: 8px 0 0 0; }
-.note-attachments li { margin-bottom: 6px; }
-.note-attachments a { color: var(--color-primary-600); }
-.muted { color: var(--color-muted); font-size: 12px; }
+.note-attachments {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--color-background-soft);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.attachments-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.attachments-header svg {
+  color: var(--color-primary-600);
+}
+
+.attachments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: all 0.2s ease;
+}
+
+.attachment-item:hover {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-400);
+  transform: translateX(4px);
+}
+
+.attachment-item svg {
+  color: var(--color-primary-600);
+  flex-shrink: 0;
+}
+
+.attachment-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-size {
+  font-size: 12px;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .note-card {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .note-avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .note-avatar-fallback {
+    font-size: 16px;
+  }
+
+  .attachment-item {
+    flex-wrap: wrap;
+  }
+  
+  .attachment-name {
+    max-width: 100%;
+  }
+}
+
+.muted { 
+  color: var(--color-muted); 
+  font-size: 12px; 
+}
 
 /* Modal styles */
 .modal-overlay {
