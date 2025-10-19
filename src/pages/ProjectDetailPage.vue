@@ -127,6 +127,46 @@
       <div class="view-content">
         <!-- Board View -->
         <div v-if="activeView === 'board'" class="board-view">
+          <!-- Board Filters -->
+          <div class="board-filters">
+            <div class="filters-group">
+              <select v-model="filterStatus" class="filter-select">
+                <option value="">Semua Status</option>
+                <option v-for="status in taskStatuses" :key="status.id" :value="status.id">
+                  {{ status.name }}
+                </option>
+              </select>
+              <select v-model="filterAssignee" class="filter-select">
+                <option value="">Semua Penugas</option>
+                <option v-for="member in project.members" :key="member.user_id" :value="member.user_id">
+                  {{ member.user_name }}
+                </option>
+              </select>
+              <select v-model="filterPriority" class="filter-select">
+                <option value="">Semua Prioritas</option>
+                <option value="low">Rendah</option>
+                <option value="medium">Sedang</option>
+                <option value="high">Tinggi</option>
+                <option value="urgent">Mendesak</option>
+              </select>
+              <button 
+                v-if="filterStatus || filterAssignee || filterPriority" 
+                class="btn-clear-filters" 
+                @click="clearFilters"
+                title="Hapus semua filter"
+              >
+                <font-awesome-icon icon="times" size="sm" />
+                Hapus Filter
+              </button>
+            </div>
+            <div class="filters-actions">
+              <button class="btn btn-primary" @click="openCreateTaskModal()">
+                <font-awesome-icon icon="plus" size="sm" />
+                Buat Tugas
+              </button>
+            </div>
+          </div>
+          
           <div class="board-columns">
             <div 
               v-for="status in taskStatuses" 
@@ -245,6 +285,15 @@
                 <option value="high">Tinggi</option>
                 <option value="urgent">Mendesak</option>
               </select>
+              <button 
+                v-if="filterStatus || filterAssignee || filterPriority" 
+                class="btn-clear-filters" 
+                @click="clearFilters"
+                title="Hapus semua filter"
+              >
+                <font-awesome-icon icon="times" size="sm" />
+                Hapus Filter
+              </button>
             </div>
             <div class="list-actions">
               <button class="btn btn-primary" @click="openCreateTaskModal()">
@@ -620,7 +669,7 @@
                   : 'Coba ubah kata kunci atau filter untuk menemukan berkas.' 
                 }}
               </p>
-              <button v-if="fileSearchQuery || fileTypeFilter" @click="clearFilters" class="btn btn-outline">
+              <button v-if="fileSearchQuery || fileTypeFilter" @click="clearFileFilters" class="btn btn-outline">
                 Hapus Filter
               </button>
             </div>
@@ -1508,7 +1557,7 @@ const filteredAttachments = computed(() => {
 
 // Helper functions
 const getTasksByStatus = (statusId) => {
-  return tasks.value.filter(task => task.status_id === statusId || task.status?.id === statusId);
+  return filteredTasks.value.filter(task => task.status_id === statusId || task.status?.id === statusId);
 };
 
 const getMemberInitials = (name) => {
@@ -1703,6 +1752,12 @@ const copyFileLink = async (file) => {
 };
 
 const clearFilters = () => {
+  filterStatus.value = '';
+  filterAssignee.value = '';
+  filterPriority.value = '';
+};
+
+const clearFileFilters = () => {
   fileSearchQuery.value = '';
   fileTypeFilter.value = '';
 };
@@ -3397,6 +3452,53 @@ const handleTaskDeleted = async (taskId) => {
   flex-direction: column;
 }
 
+/* Board Filters */
+.board-filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--color-background-soft);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.filters-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.filters-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-clear-filters:hover {
+  background: #f9fafb;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
 .board-columns {
   display: flex;
   gap: 8px;
@@ -3753,35 +3855,46 @@ const handleTaskDeleted = async (taskId) => {
 }
 
 .list-header {
-  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--color-background-soft);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
 }
 
 .list-filters {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 0.75rem;
+  flex: 1;
   flex-wrap: wrap;
-}
-
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .list-actions {
   display: flex;
-  align-items: center;
+  gap: 0.5rem;
 }
 
 .filter-select {
-  padding: 8px 12px;
+  padding: 0.625rem 1rem;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-background);
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 0.875rem;
+  font-weight: 500;
   min-width: 140px;
+  transition: all 0.2s;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .task-list {
@@ -6015,6 +6128,57 @@ const handleTaskDeleted = async (taskId) => {
     grid-template-columns: 1fr;
     gap: 16px;
   }
+  
+  /* Board filters responsive */
+  .board-filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .filters-group {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .filter-select {
+    width: 100%;
+  }
+  
+  .filters-actions {
+    width: 100%;
+  }
+  
+  .filters-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .btn-clear-filters {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  /* List filters responsive */
+  .list-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .list-filters {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .list-actions {
+    width: 100%;
+  }
+  
+  .list-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 480px) {
@@ -6042,5 +6206,112 @@ const handleTaskDeleted = async (taskId) => {
   .type-filter {
     width: 100%;
   }
+}
+
+/* Dark Mode Support */
+html.dark .board-filters,
+html.dark .list-header {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .filter-select {
+  background: #111827;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+html.dark .filter-select:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+}
+
+html.dark .btn-clear-filters {
+  background: transparent;
+  border-color: #374151;
+  color: #9ca3af;
+}
+
+html.dark .btn-clear-filters:hover {
+  background: #374151;
+  border-color: #4b5563;
+  color: #e5e7eb;
+}
+
+html.dark .board-columns {
+  background: transparent;
+}
+
+html.dark .board-column {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .column-header {
+  background: #111827;
+  border-bottom-color: #374151;
+}
+
+html.dark .column-title {
+  color: #f9fafb;
+}
+
+html.dark .column-count {
+  background: #374151;
+  color: #d1d5db;
+}
+
+html.dark .task-card {
+  background: #111827;
+  border-color: #374151;
+}
+
+html.dark .task-card:hover {
+  background: #1f2937;
+  border-color: #4b5563;
+}
+
+html.dark .task-title {
+  color: #f9fafb;
+}
+
+html.dark .task-description {
+  color: #d1d5db;
+}
+
+html.dark .list-view {
+  background: transparent;
+}
+
+html.dark .task-list {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+html.dark .task-list-header {
+  background: #111827;
+  border-bottom-color: #374151;
+  color: #f9fafb;
+}
+
+html.dark .task-list-item {
+  border-bottom-color: #374151;
+}
+
+html.dark .task-list-item:hover {
+  background: #111827;
+}
+
+html.dark .task-title {
+  color: #f9fafb;
+}
+
+html.dark .status-badge {
+  background: #374151;
+  color: #d1d5db;
+}
+
+html.dark .priority-badge {
+  border-color: #4b5563;
 }
 </style>

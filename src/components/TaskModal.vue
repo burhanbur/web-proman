@@ -3356,9 +3356,22 @@ onUnmounted(() => {
 }
 
 /* Dark mode support */
+html.dark .task-modal-overlay {
+  background-color: rgba(0, 0, 0, 0.85);
+}
+
 html.dark .task-modal {
   background-color: #1f2937;
   color: #f9fafb;
+}
+
+html.dark .btn-close {
+  color: rgba(255,255,255,0.9);
+}
+
+html.dark .btn-close:hover {
+  color: white;
+  background-color: rgba(255,255,255,0.15);
 }
 
 html.dark .modal-header {
@@ -3370,9 +3383,17 @@ html.dark .modal-title {
   color: #f9fafb;
 }
 
+html.dark .modal-content {
+  background-color: #1f2937;
+}
+
 html.dark .task-section {
   border-right-color: #374151;
   background-color: #111827;
+}
+
+html.dark .modal-content.no-comments .task-section {
+  background-color: #1f2937;
 }
 
 html.dark .comments-section {
@@ -3438,6 +3459,7 @@ html.dark .comment-input {
 
 html.dark .form-actions {
   border-top-color: #374151;
+  background-color: transparent;
 }
 
 html.dark .comment-author {
@@ -3579,6 +3601,50 @@ html.dark .attachment-actions .btn-delete {
 html.dark .attachment-actions .btn-delete:hover {
   background-color: #1f2937 !important;
   color: #fca5a5 !important;
+}
+
+/* Dark mode for buttons */
+html.dark .btn {
+  color: #e5e7eb;
+}
+
+html.dark .btn-primary {
+  background: linear-gradient(90deg, var(--color-primary-600), var(--color-primary-700));
+  color: #ffffff;
+}
+
+html.dark .btn-secondary {
+  background-color: #4b5563;
+  color: #f9fafb;
+}
+
+html.dark .btn-secondary:hover:not(:disabled) {
+  background-color: #6b7280;
+}
+
+html.dark .btn-danger {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+html.dark .btn-danger:hover:not(:disabled) {
+  background-color: #b91c1c;
+}
+
+html.dark .btn-outline {
+  background-color: transparent;
+  color: #9ca3af;
+  border-color: #4b5563;
+}
+
+html.dark .btn-outline:hover:not(:disabled) {
+  background-color: #374151;
+  color: #e5e7eb;
+}
+
+html.dark .loading-spinner {
+  border-color: #374151;
+  border-top-color: #60a5fa;
 }
 
 /* Task Relations Styles */
@@ -4585,7 +4651,7 @@ html.dark .comment-attachment-delete:hover {
 
 /* Dark mode for mobile sticky elements */
 html.dark .form-actions {
-  background-color: #111827;
+  background-color: transparent;
   border-top-color: #374151;
 }
 
