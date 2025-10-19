@@ -31,18 +31,25 @@
             <span class="section-count">{{ allTasks.length }}</span>
           </h2>
           <div class="section-actions">
-            <!-- Workspace/Project Filter -->
+            <!-- Assignment Filter -->
             <div class="filter-dropdown">
-              <select v-model="selectedTaskFilter" @change="onFilterChange" class="filter-select">
+              <select v-model="assignmentFilter" @change="onFilterChange" class="filter-select">
                 <option value="all">Semua Tugas</option>
                 <option value="assigned-to-me">Ditugaskan kepada Saya</option>
+              </select>
+            </div>
+            
+            <!-- Workspace/Project Filter -->
+            <div class="filter-dropdown">
+              <select v-model="workspaceProjectFilter" @change="onFilterChange" class="filter-select">
+                <option value="all">Semua Workspace</option>
                 <optgroup v-if="workspaces.length > 0" label="Workspace">
                   <option v-for="workspace in workspaces" :key="workspace.id" :value="`workspace-${workspace.id}`">
                     {{ workspace.name }}
                   </option>
                 </optgroup>
-                <optgroup v-if="projects.length > 0" label="Project">
-                  <option v-for="project in projects" :key="project.id" :value="`project-${project.id}`">
+                <optgroup v-if="allProjects.length > 0" label="Project">
+                  <option v-for="project in allProjects" :key="project.id" :value="`project-${project.id}`">
                     {{ project.name }}
                   </option>
                 </optgroup>
@@ -817,7 +824,11 @@ const createWorkspaceLoading = ref(false);
 // View state
 const currentView = ref('kanban'); // 'kanban' or 'list'
 
-// Task filter
+// Task filters - separated into two filters
+const assignmentFilter = ref('all'); // 'all' or 'assigned-to-me'
+const workspaceProjectFilter = ref('all'); // 'all', 'workspace-{id}', 'project-{id}'
+
+// Legacy filter (for backward compatibility)
 const selectedTaskFilter = ref('all'); // 'all', 'workspace-{id}', 'project-{id}'
 
 // Task data
@@ -979,22 +990,24 @@ const loadTasks = async (filterValue = null) => {
   try {
     // If this function is accidentally called from a DOM event handler
     // the first argument may be a Browser Event. Ignore Events and use
-    // the selectedTaskFilter instead.
+    // the filters instead.
     if (filterValue instanceof Event) {
       filterValue = null;
     }
 
-    let filter = (filterValue !== null && filterValue !== undefined) ? filterValue : selectedTaskFilter.value;
     const params = {};
 
-  if (filter === 'all') {
-      // no extra params
-    } else if (filter === 'assigned-to-me') {
+    // Apply assignment filter
+    if (assignmentFilter.value === 'assigned-to-me') {
       params.assigned_to_me = true;
-    } else if (filter.startsWith('workspace-')) {
-      params.workspace = parseInt(filter.split('-')[1]);
-    } else if (filter.startsWith('project-')) {
-      params.project = parseInt(filter.split('-')[1]);
+    }
+
+    // Apply workspace/project filter
+    const wpFilter = workspaceProjectFilter.value;
+    if (wpFilter.startsWith('workspace-')) {
+      params.workspace = parseInt(wpFilter.split('-')[1]);
+    } else if (wpFilter.startsWith('project-')) {
+      params.project = parseInt(wpFilter.split('-')[1]);
     }
 
     const res = await taskService.todo(params);
@@ -1048,20 +1061,24 @@ const loadListTasks = async () => {
       order: listParams.value.order
     };
 
-    // Apply workspace/project filter (same behavior as kanban)
-    let listFilter = selectedTaskFilter.value;
-    if (listFilter instanceof Event) listFilter = null;
+    // Apply both filters (assignment and workspace/project)
     let fetchAllForFilter = false;
-    if (typeof listFilter === 'string') {
-      if (listFilter === 'assigned-to-me') {
-        params.assigned_to_me = true;
-        fetchAllForFilter = true;
-      } else if (listFilter.startsWith('workspace-')) {
-        params.workspace = parseInt(listFilter.split('-')[1]);
+    
+    // Apply assignment filter
+    if (assignmentFilter.value === 'assigned-to-me') {
+      params.assigned_to_me = true;
+      fetchAllForFilter = true;
+    }
+    
+    // Apply workspace/project filter
+    const wpFilter = workspaceProjectFilter.value;
+    if (typeof wpFilter === 'string') {
+      if (wpFilter.startsWith('workspace-')) {
+        params.workspace = parseInt(wpFilter.split('-')[1]);
         // to ensure correct filtering in list view, fetch full dataset and filter client-side
         fetchAllForFilter = true;
-      } else if (listFilter.startsWith('project-')) {
-        params.project = parseInt(listFilter.split('-')[1]);
+      } else if (wpFilter.startsWith('project-')) {
+        params.project = parseInt(wpFilter.split('-')[1]);
         // project filtering can be handled server-side, but fetch all to be safe
         fetchAllForFilter = true;
       }
@@ -1371,24 +1388,25 @@ const clearSearch = () => {
 
 // Task management functions
 const getTasksByPriority = (priorityId) => {
-  // Respect selected workspace/project filter when showing kanban columns
-  const filter = selectedTaskFilter.value;
+  // Use both filters: assignment filter and workspace/project filter
+  const assignment = assignmentFilter.value;
+  const wpFilter = workspaceProjectFilter.value;
+  
   let workspaceFilterId = null;
   let projectFilterId = null;
-  let assignedToMe = false;
+  let assignedToMe = assignment === 'assigned-to-me';
 
-  if (typeof filter === 'string') {
-    if (filter === 'assigned-to-me') {
-      assignedToMe = true;
-    } else if (filter.startsWith('workspace-')) {
-      workspaceFilterId = parseInt(filter.split('-')[1]);
-    } else if (filter.startsWith('project-')) {
-      projectFilterId = parseInt(filter.split('-')[1]);
+  // Parse workspace/project filter
+  if (typeof wpFilter === 'string') {
+    if (wpFilter.startsWith('workspace-')) {
+      workspaceFilterId = parseInt(wpFilter.split('-')[1]);
+    } else if (wpFilter.startsWith('project-')) {
+      projectFilterId = parseInt(wpFilter.split('-')[1]);
     }
   }
 
   return allTasks.value.filter(task => {
-    // apply assigned to me filtering if active
+    // Apply assigned to me filtering if active
     if (assignedToMe) {
       const currentUserId = authStore.user?.id;
       if (!currentUserId) return false;
@@ -1398,7 +1416,7 @@ const getTasksByPriority = (priorityId) => {
       if (!isAssignedToMe) return false;
     }
 
-    // apply workspace/project filtering if active
+    // Apply workspace/project filtering if active
     if (workspaceFilterId && task.workspace_id != workspaceFilterId) return false;
     if (projectFilterId) {
       const pid = task.project?.project_id || task.project?.id || null;
