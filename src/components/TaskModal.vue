@@ -2369,6 +2369,8 @@ onUnmounted(() => {
   flex-direction: column;
   background-color: white;
   border-left: 1px solid #e5e7eb;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Task Form Styles */
@@ -3039,7 +3041,9 @@ onUnmounted(() => {
 .comments-list {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem 0;
+  min-width: 0;
 }
 
 .comments-list .comments-container {
@@ -3081,17 +3085,23 @@ onUnmounted(() => {
 
 .comments-container {
   padding: 0 1.5rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .comment-item {
   display: flex;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .comment-content {
   flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .comment-header {
@@ -3121,6 +3131,9 @@ onUnmounted(() => {
 .comment-body {
   flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .comment-body p {
@@ -3129,6 +3142,9 @@ onUnmounted(() => {
   color: #374151;
   line-height: 1.5;
   word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .comment-text {
@@ -3137,6 +3153,10 @@ onUnmounted(() => {
   color: var(--color-text, #374151);
   line-height: 1.5;
   word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 /* Dark mode override: when .dark is applied on documentElement, swap to a light text color */
@@ -3147,6 +3167,8 @@ onUnmounted(() => {
 /* Styling for rendered HTML in comments */
 .comment-text :deep(p) {
   margin: 0 0 0.5rem 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .comment-text :deep(p:last-child) {
@@ -3196,6 +3218,8 @@ onUnmounted(() => {
   border-radius: 0.25rem;
   font-family: 'Courier New', monospace;
   font-size: 0.85em;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .comment-text :deep(pre) {
@@ -3205,6 +3229,7 @@ onUnmounted(() => {
   border-radius: 0.25rem;
   overflow-x: auto;
   margin: 0.5rem 0;
+  max-width: 100%;
 }
 
 .comment-text :deep(pre code) {
@@ -3216,6 +3241,8 @@ onUnmounted(() => {
 .comment-text :deep(a) {
   color: #3b82f6;
   text-decoration: underline;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .comment-text :deep(strong) {
