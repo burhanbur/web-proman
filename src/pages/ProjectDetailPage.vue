@@ -6248,7 +6248,7 @@ html.dark .board-column {
 }
 
 html.dark .column-header {
-  background: #111827;
+  /* background: #111827; */
   border-bottom-color: #374151;
 }
 

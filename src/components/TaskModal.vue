@@ -785,6 +785,8 @@ const originalTaskData = ref({});
 const isModified = ref(false);
 const saving = ref(false);
 const showAssigneeSelector = ref(false);
+// Flag to prevent marking as modified during initialization
+const isInitializing = ref(false);
 
 // Simple form validation: ensure required fields are present
 const isFormValid = computed(() => {
@@ -919,6 +921,9 @@ const titleSuffix = computed(() => {
 
 // Methods
 const initializeTaskData = async () => {
+  // Set initializing flag to prevent false modification detection
+  isInitializing.value = true;
+  
   // Initialize when we have either numeric id or uuid (some contexts only provide uuid)
   const id = props.task?.uuid || props.task?.id;
 
@@ -966,6 +971,10 @@ const initializeTaskData = async () => {
     loadRelationTypes();
     loadAvailableTasks();
     
+    // Wait for next tick then disable initializing flag
+    await nextTick();
+    isInitializing.value = false;
+    
     return;
   }
 
@@ -1005,6 +1014,11 @@ const initializeTaskData = async () => {
   // Load relation types and available tasks
   loadRelationTypes();
   loadAvailableTasks();
+  
+  // Wait for next tick then disable initializing flag
+  await nextTick();
+  isInitializing.value = false;
+  
   } catch (error) {
     console.error('Error fetching fresh task data:', error);
     // Fallback to props data if API fails - normalize flat fields
@@ -1043,10 +1057,16 @@ const initializeTaskData = async () => {
     // Existing task - load comments
     loadComments();
   }
+  
+  // Wait for next tick then disable initializing flag (fallback case)
+  await nextTick();
+  isInitializing.value = false;
   }
 };
 
 const markAsModified = () => {
+  // Don't mark as modified during initialization
+  if (isInitializing.value) return;
   isModified.value = true;
 };
 
@@ -1126,14 +1146,18 @@ const dueDateModel = computed({
     return `${yyyy}-${mm}-${dd}`;
   },
   set(val) {
+    const original = taskData.value.due_date;
+    
     if (!val) {
-      taskData.value.due_date = null;
-      markAsModified();
+      // Only mark modified if we're actually changing from a value to null
+      if (original !== null) {
+        taskData.value.due_date = null;
+        markAsModified();
+      }
       return;
     }
 
     // val is in yyyy-MM-dd. Try to preserve time component if original had one.
-    const original = taskData.value.due_date;
     let timePart = '';
     if (original) {
       // Try to extract time from original like 'YYYY-MM-DD HH:mm:ss' or ISO
@@ -1145,8 +1169,13 @@ const dueDateModel = computed({
       }
     }
 
-    taskData.value.due_date = `${val}${timePart}`.trim();
-    markAsModified();
+    const newValue = `${val}${timePart}`.trim();
+    
+    // Only mark modified if the value actually changed
+    if (newValue !== original) {
+      taskData.value.due_date = newValue;
+      markAsModified();
+    }
   }
 });
 
@@ -1169,6 +1198,7 @@ const resetModalState = () => {
   taskAttachments.value = [];
   commentAttachments.value = [];
   isModified.value = false;
+  isInitializing.value = false;
   showAssigneeSelector.value = false;
   showAddRelationForm.value = false;
   taskSearchQuery.value = '';
