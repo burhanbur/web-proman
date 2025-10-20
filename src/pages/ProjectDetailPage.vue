@@ -3120,6 +3120,8 @@ const handleTaskDeleted = async (taskId) => {
 .project-detail-page {
   min-height: 100vh;
   background: var(--color-background);
+  overflow-x: hidden; /* Prevent horizontal scroll on page level */
+  width: 100%;
 }
 
 .draggable-row {
@@ -3450,6 +3452,8 @@ const handleTaskDeleted = async (taskId) => {
   /* let content determine height, no fixed height constraint */
   display: flex;
   flex-direction: column;
+  width: 100%;
+  overflow-x: hidden; /* Prevent overflow, only .board-columns should scroll */
 }
 
 /* Board Filters */

@@ -209,7 +209,9 @@ onMounted(() => {
     max-width: 1600px; 
     margin: 0 auto; 
     padding: 0 24px; 
-    width: 100% }
+    width: 100%;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+}
 .content-inner { 
     min-height: calc(100vh - 64px - 68px); /* viewport minus header/footer */
     /* display: flex; */
